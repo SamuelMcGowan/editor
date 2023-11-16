@@ -1,32 +1,52 @@
-use std::ptr::NonNull;
+use std::alloc::{self, Layout};
+
+const GROW_BY: usize = 1024;
 
 struct Buffer {
-    buffer_start: *mut u8,
-    buffer_end: *mut u8,
+    left: *mut u8,
+    left_len: usize,
 
-    gap_start: *mut u8,
-    gap_end: *mut u8,
+    right: *mut u8,
+    right_len: usize,
+
+    cap: usize,
 }
 
 impl Buffer {
     pub fn new() -> Self {
         Buffer {
-            buffer_start: std::ptr::null_mut(),
-            buffer_end: std::ptr::null_mut(),
-            gap_start: std::ptr::null_mut(),
-            gap_end: std::ptr::null_mut(),
+            left: std::ptr::null_mut(),
+            left_len: 0,
+
+            right: std::ptr::null_mut(),
+            right_len: 0,
+
+            cap: 0,
         }
     }
 
-    fn len(&self) -> usize {
-        self.capacity() - self.gap_len()
-    }
+    fn grow_gap(&mut self) {
+        let new_cap = self.cap + GROW_BY;
+        let new_layout = Layout::array::<u8>(new_cap).unwrap();
 
-    fn gap_len(&self) -> usize {
-        (self.gap_end as usize) - (self.gap_start as usize)
-    }
+        let new_ptr = if self.cap == 0 {
+            unsafe { alloc::alloc(new_layout) }
+        } else {
+            let old_layout = Layout::array::<u8>(self.cap).unwrap();
+            unsafe { alloc::realloc(self.left, old_layout, new_layout.size()) }
+        };
 
-    fn capacity(&self) -> usize {
-        (self.buffer_end as usize) - (self.buffer_start as usize)
+        if new_ptr.is_null() {
+            alloc::handle_alloc_error(new_layout);
+        }
+
+        let right_old = self.right;
+
+        self.left = new_ptr;
+        self.right = unsafe { self.left.add(self.cap - self.right_len) };
+
+        self.cap = new_cap;
+
+        unsafe { std::ptr::copy(right_old, self.right, self.right_len) };
     }
 }
