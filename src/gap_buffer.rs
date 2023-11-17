@@ -39,6 +39,21 @@ impl Buffer {
         self.left_len += 1;
     }
 
+    pub fn move_gap(&mut self, index: usize) {
+        if index < self.left_len {
+            let src_ptr = unsafe { self.left.add(index) };
+            let len = self.left_len - index;
+
+            self.left_len -= len;
+            self.right = unsafe { self.right.sub(len) };
+            self.right_len += len;
+
+            unsafe { std::ptr::copy(src_ptr, self.right, len) }
+        } else {
+            todo!("cannot move pointer right");
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.left_len + self.right_len
     }
@@ -68,10 +83,10 @@ impl Buffer {
 
         let right_old = self.right;
 
+        self.cap = new_cap;
+
         self.left = new_ptr;
         self.right = unsafe { self.left.add(self.cap - self.right_len) };
-
-        self.cap = new_cap;
 
         unsafe { std::ptr::copy(right_old, self.right, self.right_len) };
     }
@@ -92,13 +107,14 @@ mod tests {
     #[test]
     fn simple() {
         let mut buffer = Buffer::new();
-        buffer.push(0);
+        buffer.push(12);
 
         assert_eq!(buffer.left_len, 1);
         assert_eq!(buffer.right_len, 0);
         assert_eq!(buffer.cap, 10);
 
-        assert_eq!(buffer.left(), &[0]);
+        assert_eq!(buffer.right as usize - buffer.left as usize, 10);
+        assert_eq!(buffer.left(), &[12]);
         assert_eq!(buffer.right(), &[]);
 
         for i in 1..=10 {
@@ -108,5 +124,14 @@ mod tests {
         assert_eq!(buffer.left_len, 11);
         assert_eq!(buffer.right_len, 0);
         assert_eq!(buffer.cap, 20);
+        assert_eq!(buffer.right as usize - buffer.left as usize, 20);
+
+        buffer.move_gap(4);
+
+        assert_eq!(buffer.right as usize - buffer.left as usize, 13);
+        assert_eq!(buffer.left_len, 4);
+        assert_eq!(buffer.right_len, 7);
+        assert_eq!(buffer.left(), &[12, 1, 2, 3]);
+        assert_eq!(buffer.right(), &[4, 5, 6, 7, 8, 9, 10]);
     }
 }
