@@ -184,8 +184,12 @@ impl GapBuffer {
             .checked_add(additional)
             .expect("length overflowed");
 
-        let prev_end_ptr = self.end_ptr();
+        let prev_end_len = self.len_end;
+
         self.inner.resize_to_fit(required_len);
+
+        // Use offset to get end pointer because the buffer could have moved.
+        let prev_end_ptr = unsafe { self.start_ptr().add(prev_end_len) };
         let end_ptr = self.end_ptr();
 
         if !ptr::eq(end_ptr, prev_end_ptr) {
