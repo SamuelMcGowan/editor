@@ -102,6 +102,10 @@ impl Buffer {
 
 impl Drop for Buffer {
     fn drop(&mut self) {
+        if self.cap == 0 {
+            return;
+        }
+
         let old_layout = Layout::array::<u8>(self.cap).unwrap();
         unsafe { alloc::dealloc(self.left, old_layout) };
     }
