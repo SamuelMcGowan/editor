@@ -72,6 +72,14 @@ impl GapBuffer {
         self.front_len += slice.len();
     }
 
+    /// Push a slice to the bytes before the gap.
+    pub fn push_slice_back(&mut self, slice: &[u8]) {
+        self.reserve(slice.len());
+        self.back_len += slice.len();
+
+        unsafe { ptr::copy_nonoverlapping(slice.as_ptr(), self.back_ptr(), slice.len()) }
+    }
+
     /// Pop a value from the bytes before the gap.
     pub fn pop(&mut self) -> Option<u8> {
         if self.front_len == 0 {
@@ -292,6 +300,25 @@ mod tests {
         assert_eq!(buf.front_len, 11);
         assert_eq!(buf.back_len, 0);
         assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 16);
+
+        assert_eq!(buf.front(), b"hello world");
+        assert_eq!(buf.back(), b"");
+    }
+
+    #[test]
+    fn push_slice_back() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice_back(b"world");
+        buf.push_slice_back(b"hello ");
+
+        assert_eq!(buf.capacity(), 16);
+        assert_eq!(buf.len(), 11);
+        assert_eq!(buf.front_len, 0);
+        assert_eq!(buf.back_len, 11);
+        assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 5);
+
+        assert_eq!(buf.front(), b"");
+        assert_eq!(buf.back(), b"hello world");
     }
 
     #[test]
