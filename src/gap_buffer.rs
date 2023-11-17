@@ -47,6 +47,13 @@ impl Buffer {
     }
 
     pub fn move_gap(&mut self, index: usize) {
+        assert!(index <= self.len(), "index out of bounds");
+
+        // Don't wanna check this can't cause issues, so just gonna special case it.
+        if self.cap == 0 {
+            return;
+        }
+
         if index < self.left_len {
             let src_ptr = unsafe { self.left.add(index) };
             let len = self.left_len - index;
@@ -57,7 +64,15 @@ impl Buffer {
 
             unsafe { ptr::copy(src_ptr, self.right, len) }
         } else {
-            todo!("cannot move pointer right");
+            let src_ptr = self.right;
+            let dest_ptr = unsafe { self.left.add(self.left_len) };
+            let len = index - self.left_len;
+
+            self.left_len += len;
+            self.right = unsafe { self.right.add(len) };
+            self.right_len -= len;
+
+            unsafe { ptr::copy(src_ptr, dest_ptr, len) }
         }
     }
 
@@ -155,5 +170,24 @@ mod tests {
         assert_eq!(buffer.right_len, 7);
         assert_eq!(buffer.left(), &[12, 1, 2, 3]);
         assert_eq!(buffer.right(), &[4, 5, 6, 7, 8, 9, 10]);
+
+        buffer.move_gap(11);
+
+        assert_eq!(buffer.right as usize - buffer.left as usize, 20);
+        assert_eq!(buffer.left_len, 11);
+        assert_eq!(buffer.right_len, 0);
+        assert_eq!(buffer.left(), &[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        assert_eq!(buffer.right(), &[]);
+
+        assert_eq!(buffer.capacity(), 20);
+        assert_eq!(buffer.len(), 11);
+        assert_eq!(buffer.gap_len(), 9);
+    }
+
+    #[test]
+    #[should_panic]
+    fn move_gap_out_of_bounds() {
+        let mut buffer = Buffer::new();
+        buffer.move_gap(1);
     }
 }
