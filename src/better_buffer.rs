@@ -140,6 +140,20 @@ impl GapBuffer {
         Some(unsafe { ptr::read(self.gap_ptr()) })
     }
 
+    pub fn get(&self, index: usize) -> Option<u8> {
+        let p = self.index_to_ptr(index)?;
+
+        // Safety: pointer is valid.
+        Some(unsafe { ptr::read(p) })
+    }
+
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut u8> {
+        let p = self.index_to_ptr(index)?;
+
+        // Safety: pointer is valid for returned lifetime.
+        Some(unsafe { &mut *p })
+    }
+
     pub fn slice_start(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.start_ptr(), self.len_start) }
     }
@@ -221,6 +235,20 @@ impl GapBuffer {
         // Safety: ptr + end_offset is within the allocation
         unsafe { self.start_ptr().add(end_offset) }
     }
+
+    fn index_to_ptr(&self, index: usize) -> Option<*mut u8> {
+        if index < self.len_start {
+            Some(unsafe { self.start_ptr().add(index) })
+        } else {
+            let index = index - self.len_start;
+            if index < self.len_end {
+                // Safety: resulting pointer is within the allocation
+                Some(unsafe { self.end_ptr().add(index) })
+            } else {
+                None
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -289,6 +317,22 @@ mod tests {
     fn set_gap_out_of_bounds() {
         let mut buf = GapBuffer::new();
         buf.set_gap(1);
+    }
+
+    #[test]
+    fn get() {
+        let mut buf = GapBuffer::new();
+
+        buf.push_slice(b"hello");
+        buf.set_gap(1);
+
+        assert_eq!(buf.slice_start(), b"h");
+        assert_eq!(buf.slice_end(), b"ello");
+
+        for (i, mut byte) in b"hello".iter().copied().enumerate() {
+            assert_eq!(buf.get(i), Some(byte));
+            assert_eq!(buf.get_mut(i), Some(&mut byte));
+        }
     }
 
     fn ptr_diff(a: *const u8, b: *const u8) -> usize {
