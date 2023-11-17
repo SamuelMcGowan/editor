@@ -171,6 +171,14 @@ mod tests {
         assert_eq!(buffer.left(), &[12, 1, 2, 3]);
         assert_eq!(buffer.right(), &[4, 5, 6, 7, 8, 9, 10]);
 
+        buffer.move_gap(0);
+
+        assert_eq!(buffer.right as usize - buffer.left as usize, 9);
+        assert_eq!(buffer.left_len, 0);
+        assert_eq!(buffer.right_len, 11);
+        assert_eq!(buffer.left(), &[]);
+        assert_eq!(buffer.right(), &[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
         buffer.move_gap(11);
 
         assert_eq!(buffer.right as usize - buffer.left as usize, 20);
