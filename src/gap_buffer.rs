@@ -1,4 +1,5 @@
 use std::alloc::{self, Layout};
+use std::ptr;
 
 const GROW_BY: usize = 10;
 
@@ -22,10 +23,10 @@ impl Default for Buffer {
 impl Buffer {
     pub fn new() -> Self {
         Buffer {
-            left: std::ptr::null_mut(),
+            left: ptr::null_mut(),
             left_len: 0,
 
-            right: std::ptr::null_mut(),
+            right: ptr::null_mut(),
             right_len: 0,
 
             cap: 0,
@@ -39,7 +40,7 @@ impl Buffer {
 
         unsafe {
             let gap_ptr = self.left.add(self.left_len);
-            *gap_ptr = byte;
+            ptr::write(gap_ptr, byte);
         }
 
         self.left_len += 1;
@@ -54,7 +55,7 @@ impl Buffer {
             self.right = unsafe { self.right.sub(len) };
             self.right_len += len;
 
-            unsafe { std::ptr::copy(src_ptr, self.right, len) }
+            unsafe { ptr::copy(src_ptr, self.right, len) }
         } else {
             todo!("cannot move pointer right");
         }
@@ -98,7 +99,7 @@ impl Buffer {
 
         self.cap = new_cap;
 
-        unsafe { std::ptr::copy(right_old, self.right, self.right_len) };
+        unsafe { ptr::copy(right_old, self.right, self.right_len) };
     }
 
     pub fn left(&self) -> &[u8] {
