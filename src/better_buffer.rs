@@ -115,7 +115,7 @@ impl GapBuffer {
     }
 
     pub fn push(&mut self, byte: u8) {
-        self.make_space(1);
+        self.reserve(1);
 
         unsafe { ptr::write(self.gap_ptr(), byte) };
 
@@ -123,7 +123,7 @@ impl GapBuffer {
     }
 
     pub fn push_slice(&mut self, slice: &[u8]) {
-        self.make_space(slice.len());
+        self.reserve(slice.len());
 
         unsafe { ptr::copy_nonoverlapping(slice.as_ptr(), self.gap_ptr(), slice.len()) };
 
@@ -181,8 +181,9 @@ impl GapBuffer {
         }
     }
 
-    /// Ensure that there are at least `additional` bytes in the gap.
-    fn make_space(&mut self, additional: usize) {
+    /// Ensure that there are at least `additional` bytes of space available in
+    /// the gap.
+    pub fn reserve(&mut self, additional: usize) {
         if additional == 0 {
             return;
         }
