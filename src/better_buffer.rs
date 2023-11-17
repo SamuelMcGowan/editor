@@ -119,7 +119,15 @@ impl GapBuffer {
 
         unsafe { ptr::write(self.gap_ptr(), byte) };
 
-        self.len_start += 1; // FIXME: handle overflow
+        self.len_start += 1;
+    }
+
+    pub fn push_slice(&mut self, slice: &[u8]) {
+        self.make_space(slice.len());
+
+        unsafe { ptr::copy_nonoverlapping(slice.as_ptr(), self.gap_ptr(), slice.len()) };
+
+        self.len_start += slice.len();
     }
 
     pub fn pop(&mut self) -> Option<u8> {
@@ -239,6 +247,19 @@ mod tests {
         }
 
         assert_eq!(buf.pop(), None);
+    }
+
+    #[test]
+    fn push_slice() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello ");
+        buf.push_slice(b"world");
+
+        assert_eq!(buf.capacity(), 16);
+        assert_eq!(buf.len(), 11);
+        assert_eq!(buf.len_start(), 11);
+        assert_eq!(buf.len_end(), 0);
+        assert_eq!(ptr_diff(buf.end_ptr(), buf.start_ptr()), 16);
     }
 
     #[test]
