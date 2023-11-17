@@ -165,7 +165,9 @@ mod tests {
             buffer.push(i);
         }
 
-        assert_eq!(buffer.cap, 10);
+        assert_eq!(buffer.len(), 10);
+        assert_eq!(buffer.capacity(), 10);
+        assert_eq!(buffer.gap_len(), 0);
 
         buffer.push(10);
 
