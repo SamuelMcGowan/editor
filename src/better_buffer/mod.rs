@@ -1,6 +1,7 @@
 mod raw;
 
 use std::cmp::Ordering;
+use std::ops::{Index, IndexMut};
 use std::{ptr, slice};
 
 use self::raw::RawBuf;
@@ -125,12 +126,12 @@ impl GapBuffer {
         Some(byte)
     }
 
-    /// Get the byte at `index`.
-    pub fn get(&self, index: usize) -> Option<u8> {
+    /// Get a reference to the byte at `index`.
+    pub fn get(&self, index: usize) -> Option<&u8> {
         let p = self.index_to_ptr(index)?;
 
-        // Safety: pointer is valid.
-        Some(unsafe { ptr::read(p) })
+        // Safety: pointer is valid for returned lifetime.
+        Some(unsafe { &*p })
     }
 
     /// Get a mutable reference to the byte at `index`.
@@ -243,7 +244,7 @@ impl GapBuffer {
     }
 
     fn index_to_ptr(&self, index: usize) -> Option<*mut u8> {
-        if index > self.len() {
+        if index >= self.len() {
             return None;
         }
 
@@ -270,6 +271,20 @@ impl From<Vec<u8>> for GapBuffer {
 impl From<&[u8]> for GapBuffer {
     fn from(slice: &[u8]) -> Self {
         Self::from_slice(slice)
+    }
+}
+
+impl Index<usize> for GapBuffer {
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index).expect("index out of bounds")
+    }
+}
+
+impl IndexMut<usize> for GapBuffer {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.get_mut(index).expect("index out of bounds")
     }
 }
 
@@ -411,9 +426,11 @@ mod tests {
         assert_eq!(buf.back(), b"ello");
 
         for (i, mut byte) in b"hello".iter().copied().enumerate() {
-            assert_eq!(buf.get(i), Some(byte));
-            assert_eq!(buf.get_mut(i), Some(&mut byte));
+            assert_eq!(&buf[i], &byte);
+            assert_eq!(&mut buf[i], &mut byte);
         }
+
+        assert_eq!(buf.get(5), None);
     }
 
     #[test]
