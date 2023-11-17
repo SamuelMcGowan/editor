@@ -180,17 +180,21 @@ impl GapBuffer {
     }
 
     fn index_to_ptr(&self, index: usize) -> Option<*mut u8> {
-        if index < self.len_start {
-            Some(unsafe { self.start_ptr().add(index) })
-        } else {
-            let index = index - self.len_start;
-            if index < self.len_end {
-                // Safety: resulting pointer is within the allocation
-                Some(unsafe { self.end_ptr().add(index) })
-            } else {
-                None
-            }
+        if index > self.len() {
+            return None;
         }
+
+        let index = if index > self.len_start {
+            index + self.gap_len()
+        } else {
+            index
+        };
+
+        Some(unsafe { self.start_ptr().add(index) })
+    }
+
+    fn gap_len(&self) -> usize {
+        self.capacity() - self.len()
     }
 }
 
