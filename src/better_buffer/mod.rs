@@ -12,6 +12,7 @@ pub struct GapBuffer {
 }
 
 impl GapBuffer {
+    /// Create a new, empty gap buffer (without allocating).
     pub const fn new() -> Self {
         Self {
             inner: RawBuf::new(),
@@ -20,6 +21,7 @@ impl GapBuffer {
         }
     }
 
+    /// Create a new gap buffer with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: RawBuf::with_capacity(capacity),
@@ -28,26 +30,22 @@ impl GapBuffer {
         }
     }
 
+    /// The total capacity of the gap buffer.
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
     }
 
-    pub fn len_start(&self) -> usize {
-        self.len_start
-    }
-
-    pub fn len_end(&self) -> usize {
-        self.len_end
-    }
-
+    /// The total number of bytes in the gap buffer (not including the gap).
     pub fn len(&self) -> usize {
         self.len_start + self.len_end
     }
 
+    /// Whether the gap buffer is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Push a byte to the bytes before the gap.
     pub fn push(&mut self, byte: u8) {
         self.reserve(1);
 
@@ -56,6 +54,7 @@ impl GapBuffer {
         self.len_start += 1;
     }
 
+    /// Push a slice to the bytes before the gap.
     pub fn push_slice(&mut self, slice: &[u8]) {
         self.reserve(slice.len());
 
@@ -64,6 +63,7 @@ impl GapBuffer {
         self.len_start += slice.len();
     }
 
+    /// Pop a value from the bytes before the gap.
     pub fn pop(&mut self) -> Option<u8> {
         if self.len_start == 0 {
             return None;
@@ -74,6 +74,7 @@ impl GapBuffer {
         Some(unsafe { ptr::read(self.gap_ptr()) })
     }
 
+    /// Get the byte at `index`.
     pub fn get(&self, index: usize) -> Option<u8> {
         let p = self.index_to_ptr(index)?;
 
@@ -81,6 +82,7 @@ impl GapBuffer {
         Some(unsafe { ptr::read(p) })
     }
 
+    /// Get a mutable reference to the byte at `index`.
     pub fn get_mut(&mut self, index: usize) -> Option<&mut u8> {
         let p = self.index_to_ptr(index)?;
 
@@ -88,14 +90,19 @@ impl GapBuffer {
         Some(unsafe { &mut *p })
     }
 
+    /// The bytes before the gap.
     pub fn slice_start(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.start_ptr(), self.len_start) }
     }
 
+    /// The bytes after the gap.
     pub fn slice_end(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.end_ptr(), self.len_end) }
     }
 
+    /// Set the position of the gap.
+    ///
+    /// This may be an expensive operation if the position is moved far.
     pub fn set_gap(&mut self, index: usize) {
         assert!(index <= self.len(), "index out of bounds");
 
@@ -130,7 +137,9 @@ impl GapBuffer {
     }
 
     /// Ensure that there are at least `additional` bytes of space available in
-    /// the gap.
+    /// the gap, allocating if necessary.
+    ///
+    /// Will invalidate any pointers!
     pub fn reserve(&mut self, additional: usize) {
         if additional == 0 {
             return;
@@ -150,7 +159,7 @@ impl GapBuffer {
         let end_ptr = self.end_ptr();
 
         if !ptr::eq(end_ptr, prev_end_ptr) {
-            unsafe { ptr::copy(prev_end_ptr, end_ptr, self.len_end()) };
+            unsafe { ptr::copy(prev_end_ptr, end_ptr, self.len_end) };
         }
     }
 
@@ -164,7 +173,7 @@ impl GapBuffer {
     }
 
     fn end_ptr(&self) -> *mut u8 {
-        let end_offset = self.capacity() - self.len_end();
+        let end_offset = self.capacity() - self.len_end;
 
         // Safety: ptr + end_offset is within the allocation
         unsafe { self.start_ptr().add(end_offset) }
@@ -199,8 +208,8 @@ mod tests {
 
         assert_eq!(buf.capacity(), 16);
         assert_eq!(buf.len(), 10);
-        assert_eq!(buf.len_start(), 10);
-        assert_eq!(buf.len_end(), 0);
+        assert_eq!(buf.len_start, 10);
+        assert_eq!(buf.len_end, 0);
         assert_eq!(ptr_diff(buf.end_ptr(), buf.start_ptr()), 16);
 
         assert_eq!(buf.slice_start(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
@@ -220,8 +229,8 @@ mod tests {
 
         assert_eq!(buf.capacity(), 16);
         assert_eq!(buf.len(), 11);
-        assert_eq!(buf.len_start(), 11);
-        assert_eq!(buf.len_end(), 0);
+        assert_eq!(buf.len_start, 11);
+        assert_eq!(buf.len_end, 0);
         assert_eq!(ptr_diff(buf.end_ptr(), buf.start_ptr()), 16);
     }
 
@@ -238,8 +247,8 @@ mod tests {
         buf.set_gap(0);
         assert_eq!(buf.capacity(), 16);
         assert_eq!(buf.len(), 10);
-        assert_eq!(buf.len_start(), 0);
-        assert_eq!(buf.len_end(), 10);
+        assert_eq!(buf.len_start, 0);
+        assert_eq!(buf.len_end, 10);
         assert_eq!(ptr_diff(buf.end_ptr(), buf.start_ptr()), 6);
 
         assert_eq!(buf.slice_start(), &[]);
