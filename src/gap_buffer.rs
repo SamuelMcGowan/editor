@@ -81,12 +81,12 @@ impl Buffer {
             alloc::handle_alloc_error(new_layout);
         }
 
-        let right_old = self.right;
-
-        self.cap = new_cap;
+        let right_old = unsafe { new_ptr.add(self.cap - self.right_len) };
 
         self.left = new_ptr;
-        self.right = unsafe { self.left.add(self.cap - self.right_len) };
+        self.right = unsafe { new_ptr.add(new_cap - self.right_len) };
+
+        self.cap = new_cap;
 
         unsafe { std::ptr::copy(right_old, self.right, self.right_len) };
     }
@@ -97,6 +97,13 @@ impl Buffer {
 
     pub fn right(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.right, self.right_len) }
+    }
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        let old_layout = Layout::array::<u8>(self.cap).unwrap();
+        unsafe { alloc::dealloc(self.left, old_layout) };
     }
 }
 
