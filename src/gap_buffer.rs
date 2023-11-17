@@ -3,7 +3,7 @@ use std::alloc::{self, Layout};
 const GROW_BY: usize = 10;
 
 #[derive(Debug)]
-struct Buffer {
+pub struct Buffer {
     left: *mut u8,
     left_len: usize,
 
@@ -11,6 +11,12 @@ struct Buffer {
     right_len: usize,
 
     cap: usize,
+}
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Buffer {
@@ -56,6 +62,10 @@ impl Buffer {
 
     pub fn len(&self) -> usize {
         self.left_len + self.right_len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn capacity(&self) -> usize {
