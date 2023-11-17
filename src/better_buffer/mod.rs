@@ -54,6 +54,15 @@ impl GapBuffer {
         self.front_len += 1;
     }
 
+    /// Push a byte to the bytes after the gap.
+    pub fn push_back(&mut self, byte: u8) {
+        self.reserve(1);
+
+        self.back_len += 1;
+
+        unsafe { ptr::write(self.back_ptr(), byte) }
+    }
+
     /// Push a slice to the bytes before the gap.
     pub fn push_slice(&mut self, slice: &[u8]) {
         self.reserve(slice.len());
@@ -160,12 +169,14 @@ impl GapBuffer {
             .checked_add(additional)
             .expect("length overflowed");
 
-        let prev_back_len = self.back_len;
+        let prev_back_offset = self.capacity() - self.back_len;
 
         self.inner.resize_to_fit(required_len);
 
         // Use offset to get back pointer because the buffer could have moved.
-        let prev_back_ptr = unsafe { self.front_ptr().add(prev_back_len) };
+        // `prev_back_len` must be <= capacity so can't overflow (new capacity can't
+        // have shrunk!)
+        let prev_back_ptr = unsafe { self.front_ptr().add(prev_back_offset) };
         let back_ptr = self.back_ptr();
 
         if !ptr::eq(back_ptr, prev_back_ptr) {
@@ -233,6 +244,23 @@ mod tests {
         }
 
         assert_eq!(buf.pop(), None);
+    }
+
+    #[test]
+    fn push_pop_back() {
+        let mut buf = GapBuffer::new();
+
+        for i in 0..10 {
+            buf.push_back(i);
+        }
+
+        assert_eq!(buf.capacity(), 16);
+        assert_eq!(buf.len(), 10);
+        assert_eq!(buf.front_len, 0);
+        assert_eq!(buf.back_len, 10);
+        assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 6);
+
+        assert_eq!(buf.back(), &[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
     }
 
     #[test]
