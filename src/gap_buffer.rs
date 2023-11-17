@@ -50,6 +50,21 @@ impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
         self.left_len += 1;
     }
 
+    pub fn pop(&mut self) -> Option<u8> {
+        if self.left_len == 0 {
+            return None;
+        }
+
+        self.left_len -= 1;
+
+        let byte = unsafe {
+            let last_ptr = self.left.add(self.left_len);
+            ptr::read(last_ptr)
+        };
+
+        Some(byte)
+    }
+
     pub fn move_gap(&mut self, index: usize) {
         assert!(index <= self.len(), "index out of bounds");
 
@@ -147,9 +162,15 @@ impl<const BLOCK_SIZE: usize> Drop for Buffer<BLOCK_SIZE> {
 mod tests {
     use super::Buffer;
 
+    impl Buffer<10> {
+        const fn new10() -> Self {
+            Self::new_with_block_size()
+        }
+    }
+
     #[test]
     fn simple() {
-        let mut buffer = Buffer::<10>::new_with_block_size();
+        let mut buffer = Buffer::new10();
 
         buffer.push(12);
 
@@ -214,12 +235,25 @@ mod tests {
 
     #[test]
     fn reserve() {
-        let mut buffer = Buffer::<10>::new_with_block_size();
+        let mut buffer = Buffer::new10();
         buffer.reserve(15);
 
         assert_eq!(buffer.cap, 20);
         assert_eq!(buffer.right as usize - buffer.left as usize, 20);
         assert_eq!(buffer.left_len, 0);
         assert_eq!(buffer.right_len, 0);
+    }
+
+    #[test]
+    fn pop() {
+        let mut buffer = Buffer::new10();
+        buffer.push(1);
+        buffer.push(2);
+        buffer.push(3);
+
+        assert_eq!(buffer.pop(), Some(3));
+        assert_eq!(buffer.pop(), Some(2));
+        assert_eq!(buffer.pop(), Some(1));
+        assert_eq!(buffer.pop(), None);
     }
 }
