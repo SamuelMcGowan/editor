@@ -3,27 +3,27 @@ use std::ptr::{self, NonNull};
 
 const MIN_RESERVE: usize = 8;
 
-pub struct RawBuf {
+struct RawBuf {
     ptr: NonNull<u8>,
     cap: usize,
 }
 
 impl RawBuf {
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self {
             ptr: NonNull::dangling(),
             cap: 0,
         }
     }
 
-    pub fn with_capacity(capacity: usize) -> Self {
+    fn with_capacity(capacity: usize) -> Self {
         let mut buf = Self::new();
         buf.alloc_cap(capacity);
         buf
     }
 
     /// Resize so that the new capacity >= the required capacity.
-    pub fn resize_to_fit(&mut self, required_cap: usize) {
+    fn resize_to_fit(&mut self, required_cap: usize) {
         if required_cap <= self.cap {
             return;
         }
