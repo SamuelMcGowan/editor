@@ -1,8 +1,10 @@
 use std::alloc::{self, Layout};
 use std::ptr;
 
+const MIN_RESERVE: usize = 8;
+
 #[derive(Debug)]
-pub struct Buffer<const BLOCK_SIZE: usize = 1024> {
+pub struct Buffer {
     left: *mut u8,
     left_len: usize,
 
@@ -20,12 +22,6 @@ impl Default for Buffer {
 
 impl Buffer {
     pub const fn new() -> Self {
-        Self::new_with_block_size()
-    }
-}
-
-impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
-    pub const fn new_with_block_size() -> Self {
         Buffer {
             left: ptr::null_mut(),
             left_len: 0,
@@ -35,6 +31,12 @@ impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
 
             cap: 0,
         }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        let mut buffer = Buffer::new();
+        buffer.reserve(capacity);
+        buffer
     }
 
     pub fn push(&mut self, byte: u8) {
@@ -128,9 +130,9 @@ impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
     }
 
     pub fn reserve(&mut self, additional: usize) {
-        let blocks = additional.div_ceil(BLOCK_SIZE);
+        // let blocks = additional.div_ceil(BLOCK_SIZE);
 
-        let new_cap = self.cap + blocks * BLOCK_SIZE;
+        let new_cap = grow_cap(self.cap, additional);
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
 
         let new_ptr = if self.cap == 0 {
@@ -163,7 +165,7 @@ impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
     }
 }
 
-impl<const BLOCK_SIZE: usize> Drop for Buffer<BLOCK_SIZE> {
+impl Drop for Buffer {
     fn drop(&mut self) {
         if self.cap == 0 {
             return;
@@ -174,19 +176,24 @@ impl<const BLOCK_SIZE: usize> Drop for Buffer<BLOCK_SIZE> {
     }
 }
 
+fn grow_cap(cap: usize, additional: usize) -> usize {
+    debug_assert!(cap <= isize::MAX as usize);
+    debug_assert!(additional > 0);
+
+    let required_cap = cap.checked_add(additional).expect("capacity overflow");
+
+    // Multiplying cap by 2 can't overflow as cap is at most isize::MAX
+    (cap * 2).max(required_cap).max(MIN_RESERVE)
+}
+
 #[cfg(test)]
 mod tests {
     use super::Buffer;
-
-    impl Buffer<10> {
-        const fn new10() -> Self {
-            Self::new_with_block_size()
-        }
-    }
+    use crate::gap_buffer::{grow_cap, MIN_RESERVE};
 
     #[test]
     fn simple() {
-        let mut buffer = Buffer::new10();
+        let mut buffer = Buffer::with_capacity(10);
 
         buffer.push(12);
 
@@ -251,18 +258,18 @@ mod tests {
 
     #[test]
     fn reserve() {
-        let mut buffer = Buffer::new10();
+        let mut buffer = Buffer::new();
         buffer.reserve(15);
 
-        assert_eq!(buffer.cap, 20);
-        assert_eq!(buffer.right as usize - buffer.left as usize, 20);
+        assert_eq!(buffer.cap, 15);
+        assert_eq!(buffer.right as usize - buffer.left as usize, 15);
         assert_eq!(buffer.left_len, 0);
         assert_eq!(buffer.right_len, 0);
     }
 
     #[test]
     fn pop() {
-        let mut buffer = Buffer::new10();
+        let mut buffer = Buffer::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
@@ -275,7 +282,7 @@ mod tests {
 
     #[test]
     fn push() {
-        let mut buffer = Buffer::new10();
+        let mut buffer = Buffer::with_capacity(10);
         buffer.push_slice(b"hello");
 
         assert_eq!(buffer.left_len, 5);
@@ -285,8 +292,15 @@ mod tests {
         buffer.push_slice(b" world!");
 
         assert_eq!(buffer.left_len, 12);
-        assert_eq!(buffer.capacity(), 20);
         assert_eq!(buffer.left(), b"hello world!");
         assert_eq!(buffer.right(), b"");
+
+        assert_eq!(buffer.capacity(), 20);
+    }
+
+    #[test]
+    fn growing() {
+        assert_eq!(grow_cap(0, 1), MIN_RESERVE);
+        assert_eq!(grow_cap(MIN_RESERVE, 1), MIN_RESERVE * 2);
     }
 }
