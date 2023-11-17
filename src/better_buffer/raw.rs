@@ -16,18 +16,25 @@ impl RawBuf {
         }
     }
 
+    pub fn with_capacity(capacity: usize) -> Self {
+        let mut buf = Self::new();
+        buf.alloc_cap(capacity);
+        buf
+    }
+
+    /// Only works for vecs that use the global allocator.
+    pub fn from_vec(v: Vec<u8>) -> Self {
+        let cap = v.capacity();
+        let ptr = NonNull::new(v.leak()).unwrap().cast();
+        Self { ptr, cap }
+    }
+
     pub fn capacity(&self) -> usize {
         self.cap
     }
 
     pub fn as_ptr(&self) -> *mut u8 {
         self.ptr.as_ptr()
-    }
-
-    pub fn with_capacity(capacity: usize) -> Self {
-        let mut buf = Self::new();
-        buf.alloc_cap(capacity);
-        buf
     }
 
     /// Resize so that the new capacity >= the required capacity.

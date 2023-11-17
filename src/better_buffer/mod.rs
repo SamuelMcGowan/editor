@@ -30,6 +30,21 @@ impl GapBuffer {
         }
     }
 
+    /// Convert from a vec, retaining excess capacity.
+    ///
+    /// Only works for vecs that use the global allocator (we have to deallocate
+    /// its contents afterwards!)
+    pub fn from_vec(v: Vec<u8>) -> Self {
+        let len = v.len();
+        let inner = RawBuf::from_vec(v);
+
+        Self {
+            inner,
+            front_len: len,
+            back_len: 0,
+        }
+    }
+
     /// The total capacity of the gap buffer.
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
@@ -239,9 +254,32 @@ impl GapBuffer {
     }
 }
 
+impl From<Vec<u8>> for GapBuffer {
+    fn from(v: Vec<u8>) -> Self {
+        Self::from_vec(v)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::GapBuffer;
+
+    #[test]
+    fn from_vec() {
+        let v = vec![0, 1, 2, 3, 4];
+        let cap = v.capacity();
+
+        let buf = GapBuffer::from(v);
+
+        assert_eq!(buf.capacity(), cap);
+        assert_eq!(buf.len(), 5);
+        assert_eq!(buf.front_len, 5);
+        assert_eq!(buf.back_len, 0);
+        assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), cap);
+
+        assert_eq!(buf.front(), &[0, 1, 2, 3, 4]);
+        assert_eq!(buf.back(), &[]);
+    }
 
     #[test]
     fn push_pop() {
