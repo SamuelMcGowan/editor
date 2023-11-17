@@ -30,7 +30,7 @@ impl GapBuffer {
         }
     }
 
-    /// Convert from a vec, retaining excess capacity.
+    /// Create from an existing vec, retaining excess capacity.
     ///
     /// Only works for vecs that use the global allocator (we have to deallocate
     /// its contents afterwards!)
@@ -43,6 +43,13 @@ impl GapBuffer {
             front_len: len,
             back_len: 0,
         }
+    }
+
+    /// Create from a slice.
+    pub fn from_slice(slice: &[u8]) -> Self {
+        let mut buf = Self::new();
+        buf.push_slice(slice);
+        buf
     }
 
     /// The total capacity of the gap buffer.
@@ -257,6 +264,12 @@ impl GapBuffer {
 impl From<Vec<u8>> for GapBuffer {
     fn from(v: Vec<u8>) -> Self {
         Self::from_vec(v)
+    }
+}
+
+impl From<&[u8]> for GapBuffer {
+    fn from(slice: &[u8]) -> Self {
+        Self::from_slice(slice)
     }
 }
 
