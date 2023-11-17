@@ -19,13 +19,13 @@ impl Default for Buffer {
 }
 
 impl Buffer {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self::new_with_block_size()
     }
 }
 
 impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
-    pub fn new_with_block_size() -> Self {
+    pub const fn new_with_block_size() -> Self {
         Buffer {
             left: ptr::null_mut(),
             left_len: 0,
@@ -39,7 +39,7 @@ impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
 
     pub fn push(&mut self, byte: u8) {
         if self.gap_len() == 0 {
-            self.grow_gap();
+            self.reserve(1);
         }
 
         unsafe {
@@ -96,8 +96,10 @@ impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
         self.capacity() - self.len()
     }
 
-    fn grow_gap(&mut self) {
-        let new_cap = self.cap + BLOCK_SIZE;
+    pub fn reserve(&mut self, additional: usize) {
+        let blocks = additional.div_ceil(BLOCK_SIZE);
+
+        let new_cap = self.cap + blocks * BLOCK_SIZE;
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
 
         let new_ptr = if self.cap == 0 {
@@ -206,5 +208,16 @@ mod tests {
     fn move_gap_out_of_bounds() {
         let mut buffer = Buffer::new();
         buffer.move_gap(1);
+    }
+
+    #[test]
+    fn reserve() {
+        let mut buffer = Buffer::<10>::new_with_block_size();
+        buffer.reserve(15);
+
+        assert_eq!(buffer.cap, 20);
+        assert_eq!(buffer.right as usize - buffer.left as usize, 20);
+        assert_eq!(buffer.left_len, 0);
+        assert_eq!(buffer.right_len, 0);
     }
 }
