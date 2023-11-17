@@ -1,43 +1,57 @@
 use std::alloc::{self, Layout};
-use std::ptr::NonNull;
+use std::ptr::{self, NonNull};
 
 const MIN_RESERVE: usize = 8;
 
 pub struct RawBuf {
-    bytes: NonNull<u8>,
+    ptr: NonNull<u8>,
     cap: usize,
 }
 
 impl RawBuf {
     pub const fn new() -> Self {
         Self {
-            bytes: NonNull::dangling(),
+            ptr: NonNull::dangling(),
             cap: 0,
         }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         let mut buf = Self::new();
-        buf.reserve(capacity);
+        buf.alloc_cap(capacity);
         buf
     }
 
-    pub fn reserve(&mut self, additional: usize) {
-        if additional == 0 {
+    /// Resize so that the new capacity >= the required capacity.
+    pub fn resize_to_fit(&mut self, required_cap: usize) {
+        if required_cap <= self.cap {
             return;
         }
 
-        let new_cap = grow_cap(self.cap, additional);
+        // Multiplying cap by 2 can't overflow as cap is at most isize::MAX
+        let new_cap = (self.cap * 2).max(required_cap).max(MIN_RESERVE);
+
+        self.alloc_cap(new_cap);
+    }
+
+    /// Resize to the given capacity.
+    fn alloc_cap(&mut self, new_cap: usize) {
+        assert!(new_cap > 0);
+        assert!(
+            new_cap <= isize::MAX as usize,
+            "capacity too large (greater than isize::MAX)"
+        );
+
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
 
         let new_ptr = if self.cap == 0 {
             unsafe { alloc::alloc(new_layout) }
         } else {
             let old_layout = Layout::array::<u8>(self.cap).unwrap();
-            unsafe { alloc::realloc(self.bytes.as_ptr(), old_layout, new_layout.size()) }
+            unsafe { alloc::realloc(self.ptr.as_ptr(), old_layout, new_layout.size()) }
         };
 
-        self.bytes = match NonNull::new(new_ptr) {
+        self.ptr = match NonNull::new(new_ptr) {
             Some(ptr) => ptr,
             None => alloc::handle_alloc_error(new_layout),
         };
@@ -52,18 +66,8 @@ impl Drop for RawBuf {
         }
 
         let old_layout = Layout::array::<u8>(self.cap).unwrap();
-        unsafe { alloc::dealloc(self.bytes.as_ptr(), old_layout) }
+        unsafe { alloc::dealloc(self.ptr.as_ptr(), old_layout) }
     }
-}
-
-fn grow_cap(cap: usize, additional: usize) -> usize {
-    debug_assert!(cap <= isize::MAX as usize);
-    debug_assert!(additional > 0);
-
-    let required_cap = cap.checked_add(additional).expect("capacity overflow");
-
-    // Multiplying cap by 2 can't overflow as cap is at most isize::MAX
-    (cap * 2).max(required_cap).max(MIN_RESERVE)
 }
 
 pub struct GapBuffer {
@@ -89,6 +93,10 @@ impl GapBuffer {
         }
     }
 
+    pub fn capacity(&self) -> usize {
+        self.inner.cap
+    }
+
     pub fn len_start(&self) -> usize {
         self.len_start
     }
@@ -103,5 +111,95 @@ impl GapBuffer {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn push(&mut self, byte: u8) {
+        self.make_space(1);
+
+        unsafe { ptr::write(self.gap_ptr(), byte) };
+
+        self.len_start += 1; // FIXME: handle overflow
+    }
+
+    pub fn pop(&mut self) -> Option<u8> {
+        if self.len_start == 0 {
+            return None;
+        }
+
+        self.len_start -= 1;
+
+        Some(unsafe { ptr::read(self.gap_ptr()) })
+    }
+
+    pub fn slice_start(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.start_ptr(), self.len_start) }
+    }
+
+    pub fn slice_end(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.end_ptr(), self.len_end) }
+    }
+
+    /// Ensure that there are at least `additional` bytes in the gap.
+    fn make_space(&mut self, additional: usize) {
+        if additional == 0 {
+            return;
+        }
+
+        let required_len = self
+            .len()
+            .checked_add(additional)
+            .expect("length overflowed");
+
+        let prev_end_ptr = self.end_ptr();
+        self.inner.resize_to_fit(required_len);
+        let end_ptr = self.end_ptr();
+
+        if !ptr::eq(end_ptr, prev_end_ptr) {
+            unsafe { ptr::copy(prev_end_ptr, end_ptr, self.len_end()) };
+        }
+    }
+
+    fn start_ptr(&self) -> *mut u8 {
+        self.inner.ptr.as_ptr()
+    }
+
+    fn gap_ptr(&self) -> *mut u8 {
+        // Safety: ptr + len_start is within the allocation
+        unsafe { self.start_ptr().add(self.len_start) }
+    }
+
+    fn end_ptr(&self) -> *mut u8 {
+        let end_offset = self.capacity() - self.len_end();
+
+        // Safety: ptr + end_offset is within the allocation
+        unsafe { self.start_ptr().add(end_offset) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::GapBuffer;
+
+    #[test]
+    fn push_pop() {
+        let mut buf = GapBuffer::new();
+
+        for i in 0..10 {
+            buf.push(i);
+        }
+
+        assert_eq!(buf.capacity(), 16);
+        assert_eq!(buf.len(), 10);
+        assert_eq!(buf.len_start(), 10);
+        assert_eq!(buf.len_end(), 0);
+        assert_eq!(buf.end_ptr() as usize - buf.start_ptr() as usize, 16);
+
+        assert_eq!(buf.slice_start(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+        for i in (0..10).rev() {
+            assert_eq!(buf.pop(), Some(i));
+        }
+
+        assert_eq!(buf.pop(), None);
     }
 }
