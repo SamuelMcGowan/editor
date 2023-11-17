@@ -1,4 +1,5 @@
 use std::alloc::{self, Layout};
+use std::cmp::Ordering;
 use std::ptr::{self, NonNull};
 
 const MIN_RESERVE: usize = 8;
@@ -139,6 +140,39 @@ impl GapBuffer {
         unsafe { std::slice::from_raw_parts(self.end_ptr(), self.len_end) }
     }
 
+    pub fn set_gap(&mut self, index: usize) {
+        assert!(index <= self.len(), "index out of bounds");
+
+        if self.capacity() == 0 {
+            return;
+        }
+
+        match index.cmp(&self.len_start) {
+            Ordering::Less => {
+                let src_ptr = unsafe { self.start_ptr().add(index) };
+                let len = self.len_start - index;
+
+                self.len_start = index;
+                self.len_end += len;
+
+                unsafe { ptr::copy(src_ptr, self.end_ptr(), len) };
+            }
+
+            Ordering::Equal => {}
+
+            Ordering::Greater => {
+                let src_ptr = self.end_ptr();
+                let dest_ptr = self.gap_ptr();
+                let len = index - self.len_start;
+
+                self.len_start = index;
+                self.len_end -= len;
+
+                unsafe { ptr::copy(src_ptr, dest_ptr, len) };
+            }
+        }
+    }
+
     /// Ensure that there are at least `additional` bytes in the gap.
     fn make_space(&mut self, additional: usize) {
         if additional == 0 {
@@ -192,7 +226,7 @@ mod tests {
         assert_eq!(buf.len(), 10);
         assert_eq!(buf.len_start(), 10);
         assert_eq!(buf.len_end(), 0);
-        assert_eq!(buf.end_ptr() as usize - buf.start_ptr() as usize, 16);
+        assert_eq!(ptr_diff(buf.end_ptr(), buf.start_ptr()), 16);
 
         assert_eq!(buf.slice_start(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
@@ -201,5 +235,37 @@ mod tests {
         }
 
         assert_eq!(buf.pop(), None);
+    }
+
+    #[test]
+    fn set_gap() {
+        let mut buf = GapBuffer::new();
+        for i in 0..10 {
+            buf.push(i);
+        }
+
+        assert_eq!(buf.slice_start(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(buf.slice_end(), &[]);
+
+        buf.set_gap(0);
+        assert_eq!(buf.capacity(), 16);
+        assert_eq!(buf.len(), 10);
+        assert_eq!(buf.len_start(), 0);
+        assert_eq!(buf.len_end(), 10);
+        assert_eq!(ptr_diff(buf.end_ptr(), buf.start_ptr()), 6);
+
+        assert_eq!(buf.slice_start(), &[]);
+        assert_eq!(buf.slice_end(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    }
+
+    #[test]
+    #[should_panic]
+    fn set_gap_out_of_bounds() {
+        let mut buf = GapBuffer::new();
+        buf.set_gap(1);
+    }
+
+    fn ptr_diff(a: *const u8, b: *const u8) -> usize {
+        a as usize - b as usize
     }
 }
