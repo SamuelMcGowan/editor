@@ -1,10 +1,8 @@
 use std::alloc::{self, Layout};
 use std::ptr;
 
-const GROW_BY: usize = 10;
-
 #[derive(Debug)]
-pub struct Buffer {
+pub struct Buffer<const BLOCK_SIZE: usize = 1024> {
     left: *mut u8,
     left_len: usize,
 
@@ -22,6 +20,12 @@ impl Default for Buffer {
 
 impl Buffer {
     pub fn new() -> Self {
+        Self::new_with_block_size()
+    }
+}
+
+impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
+    pub fn new_with_block_size() -> Self {
         Buffer {
             left: ptr::null_mut(),
             left_len: 0,
@@ -93,7 +97,7 @@ impl Buffer {
     }
 
     fn grow_gap(&mut self) {
-        let new_cap = self.cap + GROW_BY;
+        let new_cap = self.cap + BLOCK_SIZE;
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
 
         let new_ptr = if self.cap == 0 {
@@ -126,7 +130,7 @@ impl Buffer {
     }
 }
 
-impl Drop for Buffer {
+impl<const BLOCK_SIZE: usize> Drop for Buffer<BLOCK_SIZE> {
     fn drop(&mut self) {
         if self.cap == 0 {
             return;
@@ -143,7 +147,8 @@ mod tests {
 
     #[test]
     fn simple() {
-        let mut buffer = Buffer::new();
+        let mut buffer = Buffer::<10>::new_with_block_size();
+
         buffer.push(12);
 
         assert_eq!(buffer.left_len, 1);
@@ -154,9 +159,13 @@ mod tests {
         assert_eq!(buffer.left(), &[12]);
         assert_eq!(buffer.right(), &[]);
 
-        for i in 1..=10 {
+        for i in 1..=9 {
             buffer.push(i);
         }
+
+        assert_eq!(buffer.cap, 10);
+
+        buffer.push(10);
 
         assert_eq!(buffer.left_len, 11);
         assert_eq!(buffer.right_len, 0);
