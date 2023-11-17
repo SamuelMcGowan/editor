@@ -1,7 +1,7 @@
 mod raw;
 
 use std::cmp::Ordering;
-use std::ptr;
+use std::{ptr, slice};
 
 use self::raw::RawBuf;
 
@@ -92,12 +92,22 @@ impl GapBuffer {
 
     /// The bytes before the gap.
     pub fn slice_start(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.start_ptr(), self.len_start) }
+        unsafe { slice::from_raw_parts(self.start_ptr(), self.len_start) }
+    }
+
+    /// The bytes before the gap, mutably.
+    pub fn slice_start_mut(&mut self) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self.start_ptr(), self.len_start) }
     }
 
     /// The bytes after the gap.
     pub fn slice_end(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.end_ptr(), self.len_end) }
+        unsafe { slice::from_raw_parts(self.end_ptr(), self.len_end) }
+    }
+
+    /// The bytes after the gap, mutably.
+    pub fn slice_end_mut(&mut self) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self.end_ptr(), self.len_end) }
     }
 
     /// Set the position of the gap.
@@ -280,6 +290,14 @@ mod tests {
             assert_eq!(buf.get(i), Some(byte));
             assert_eq!(buf.get_mut(i), Some(&mut byte));
         }
+    }
+
+    #[test]
+    fn mutable_slice() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello");
+        buf.slice_start_mut()[0] = b'f';
+        assert_eq!(buf.slice_start(), b"fello");
     }
 
     fn ptr_diff(a: *const u8, b: *const u8) -> usize {
