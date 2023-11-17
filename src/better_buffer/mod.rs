@@ -83,6 +83,18 @@ impl GapBuffer {
         Some(unsafe { ptr::read(self.gap_ptr()) })
     }
 
+    /// Pop a value from the bytes after the gap.
+    pub fn pop_back(&mut self) -> Option<u8> {
+        if self.back_len == 0 {
+            return None;
+        }
+
+        let byte = unsafe { ptr::read(self.back_ptr()) };
+        self.back_len -= 1;
+
+        Some(byte)
+    }
+
     /// Get the byte at `index`.
     pub fn get(&self, index: usize) -> Option<u8> {
         let p = self.index_to_ptr(index)?;
@@ -261,6 +273,12 @@ mod tests {
         assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 6);
 
         assert_eq!(buf.back(), &[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
+
+        for i in (0..10).rev() {
+            assert_eq!(buf.pop_back(), Some(i));
+        }
+
+        assert_eq!(buf.pop_back(), None);
     }
 
     #[test]
