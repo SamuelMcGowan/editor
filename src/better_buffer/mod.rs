@@ -95,7 +95,7 @@ impl GapBuffer {
         self.front_len += slice.len();
     }
 
-    /// Push a slice to the bytes before the gap.
+    /// Push a slice to the bytes after the gap.
     pub fn push_slice_back(&mut self, slice: &[u8]) {
         self.reserve(slice.len());
         self.back_len += slice.len();
