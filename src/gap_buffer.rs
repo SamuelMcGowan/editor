@@ -1,7 +1,8 @@
 use std::alloc::{self, Layout};
 
-const GROW_BY: usize = 1024;
+const GROW_BY: usize = 10;
 
+#[derive(Debug)]
 struct Buffer {
     left: *mut u8,
     left_len: usize,
@@ -23,6 +24,31 @@ impl Buffer {
 
             cap: 0,
         }
+    }
+
+    pub fn push(&mut self, byte: u8) {
+        if self.gap_len() == 0 {
+            self.grow_gap();
+        }
+
+        unsafe {
+            let gap_ptr = self.left.add(self.left_len);
+            *gap_ptr = byte;
+        }
+
+        self.left_len += 1;
+    }
+
+    pub fn len(&self) -> usize {
+        self.left_len + self.right_len
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.cap
+    }
+
+    pub fn gap_len(&self) -> usize {
+        self.capacity() - self.len()
     }
 
     fn grow_gap(&mut self) {
@@ -48,5 +74,39 @@ impl Buffer {
         self.cap = new_cap;
 
         unsafe { std::ptr::copy(right_old, self.right, self.right_len) };
+    }
+
+    pub fn left(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.left, self.left_len) }
+    }
+
+    pub fn right(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.right, self.right_len) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Buffer;
+
+    #[test]
+    fn simple() {
+        let mut buffer = Buffer::new();
+        buffer.push(0);
+
+        assert_eq!(buffer.left_len, 1);
+        assert_eq!(buffer.right_len, 0);
+        assert_eq!(buffer.cap, 10);
+
+        assert_eq!(buffer.left(), &[0]);
+        assert_eq!(buffer.right(), &[]);
+
+        for i in 1..=10 {
+            buffer.push(i);
+        }
+
+        assert_eq!(buffer.left_len, 11);
+        assert_eq!(buffer.right_len, 0);
+        assert_eq!(buffer.cap, 20);
     }
 }
