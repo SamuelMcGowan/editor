@@ -65,6 +65,22 @@ impl<const BLOCK_SIZE: usize> Buffer<BLOCK_SIZE> {
         Some(byte)
     }
 
+    pub fn push_slice(&mut self, slice: &[u8]) {
+        if self.gap_len() < slice.len() {
+            self.reserve(slice.len());
+        }
+
+        unsafe {
+            let gap_ptr = self.left.add(self.left_len);
+
+            // Slice argument can never point into the gap (as we simply wouldn't allow
+            // that), so this is ok.
+            ptr::copy_nonoverlapping(slice.as_ptr(), gap_ptr, slice.len());
+        }
+
+        self.left_len += slice.len();
+    }
+
     pub fn move_gap(&mut self, index: usize) {
         assert!(index <= self.len(), "index out of bounds");
 
@@ -255,5 +271,22 @@ mod tests {
         assert_eq!(buffer.pop(), Some(2));
         assert_eq!(buffer.pop(), Some(1));
         assert_eq!(buffer.pop(), None);
+    }
+
+    #[test]
+    fn push() {
+        let mut buffer = Buffer::new10();
+        buffer.push_slice(b"hello");
+
+        assert_eq!(buffer.left_len, 5);
+        assert_eq!(buffer.left(), b"hello");
+        assert_eq!(buffer.right(), b"");
+
+        buffer.push_slice(b" world!");
+
+        assert_eq!(buffer.left_len, 12);
+        assert_eq!(buffer.capacity(), 20);
+        assert_eq!(buffer.left(), b"hello world!");
+        assert_eq!(buffer.right(), b"");
     }
 }
