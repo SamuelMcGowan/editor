@@ -1,17 +1,8 @@
-use gap_buffer::GapBuffer;
-
-pub mod draw;
+pub mod char_buffer;
 pub mod gap_buffer;
-pub mod term;
+pub mod platform;
+pub mod style;
 
 fn main() {
     println!("Hello, world!");
-}
-
-pub struct Editor {
-    buffer: GapBuffer,
-}
-
-impl Editor {
-    fn draw(&self) {}
 }
