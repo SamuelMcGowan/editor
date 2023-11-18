@@ -10,6 +10,9 @@ mod ansi_event;
 mod input;
 pub mod linux;
 
+#[cfg(target_os = "linux")]
+pub type PlatformTerminal = linux::LinuxTerminal;
+
 pub trait Terminal: Sized {
     type Writer: Writer;
     type Events: Events;
