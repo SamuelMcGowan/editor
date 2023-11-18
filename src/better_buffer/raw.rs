@@ -51,7 +51,7 @@ impl RawBuf {
 
     /// Resize to the given capacity.
     pub fn alloc_cap(&mut self, new_cap: usize) {
-        assert!(new_cap > 0);
+        assert!(new_cap > 0, "capacity was zero");
         assert!(
             new_cap <= isize::MAX as usize,
             "capacity too large (greater than isize::MAX)"
