@@ -1,8 +1,11 @@
+use std::io;
+
 use self::raw_term::RawTerm;
 use super::ansi::AnsiWriter;
 use super::ansi_event::AnsiEvents;
 use super::{Terminal, Writer};
 use crate::style::Style;
+use crate::units::Offset;
 
 mod raw_term;
 
@@ -16,7 +19,7 @@ impl Terminal for LinuxTerminal {
     type Events = AnsiEvents;
 
     #[inline]
-    fn init() -> std::io::Result<Self> {
+    fn init() -> io::Result<Self> {
         let mut term = Self {
             ansi_raw_term: AnsiWriter::new(RawTerm::new()?),
             ansi_events: AnsiEvents::default(),
@@ -28,7 +31,7 @@ impl Terminal for LinuxTerminal {
         Ok(term)
     }
 
-    fn size(&self) -> std::io::Result<(u16, u16)> {
+    fn size(&self) -> io::Result<Offset> {
         self.ansi_raw_term.inner().size()
     }
 

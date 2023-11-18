@@ -3,6 +3,7 @@ use std::io::{self, Write};
 
 use super::Writer;
 use crate::style::{Color, Weight};
+use crate::units::Offset;
 
 const CSI: &str = "\x1b[";
 
@@ -44,9 +45,11 @@ impl<W: Write> Writer for AnsiWriter<W> {
     }
 
     #[inline]
-    fn set_cursor_pos(&mut self, x: u16, y: u16) {
-        let row = y.saturating_add(1);
-        let col = x.saturating_add(1);
+    fn set_cursor_pos(&mut self, pos: impl Into<Offset>) {
+        let pos = pos.into();
+
+        let row = pos.y.saturating_add(1);
+        let col = pos.x.saturating_add(1);
 
         write!(self.buf, "{CSI}{row};{col}H").unwrap();
     }

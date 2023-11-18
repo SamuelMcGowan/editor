@@ -6,6 +6,8 @@ use std::{io, mem};
 
 use libc::{termios as Termios, winsize as WinSize, STDIN_FILENO, STDOUT_FILENO};
 
+use crate::units::Offset;
+
 static RAW_TERM: AtomicBool = AtomicBool::new(false);
 
 macro_rules! c_result {
@@ -30,10 +32,10 @@ unsafe fn set_termios(fd: RawFd, termios: &Termios) -> io::Result<()> {
     Ok(())
 }
 
-unsafe fn get_size(fd: RawFd) -> io::Result<(u16, u16)> {
+unsafe fn get_size(fd: RawFd) -> io::Result<Offset> {
     let mut size: WinSize = unsafe { mem::zeroed() };
     c_result!(unsafe { libc::ioctl(fd, libc::TIOCGWINSZ, &mut size) })?;
-    Ok((size.ws_col, size.ws_row))
+    Ok(Offset::new(size.ws_col, size.ws_row))
 }
 
 pub struct RawTerm {
@@ -58,7 +60,7 @@ impl RawTerm {
         Ok(Self { termios_prev })
     }
 
-    pub fn size(&self) -> io::Result<(u16, u16)> {
+    pub fn size(&self) -> io::Result<Offset> {
         unsafe { get_size(STDIN_FILENO) }
     }
 }
