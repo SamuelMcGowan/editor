@@ -12,6 +12,7 @@ pub struct LinuxTerminal {
 impl Terminal for LinuxTerminal {
     type Writer = AnsiWriter<RawTerm>;
 
+    #[inline]
     fn init() -> std::io::Result<Self> {
         let mut term = Self {
             ansi_raw_term: AnsiWriter::new(RawTerm::new()?),
@@ -27,6 +28,7 @@ impl Terminal for LinuxTerminal {
         self.ansi_raw_term.inner().size()
     }
 
+    #[inline]
     fn writer(&mut self) -> &mut Self::Writer {
         &mut self.ansi_raw_term
     }

@@ -34,5 +34,10 @@ pub trait Writer {
     fn write_char(&mut self, c: char);
     fn write_str(&mut self, s: &str);
 
-    fn write_style(&mut self, style: Style);
+    fn write_style(&mut self, style: Style) {
+        self.set_fg_color(style.fg);
+        self.set_bg_color(style.bg);
+        self.set_weight(style.weight);
+        self.set_underline(style.underline);
+    }
 }
