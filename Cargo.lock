@@ -3,7 +3,19 @@
 version = 3
 
 [[package]]
-name = "editor"
+name = "ash_editor"
+version = "0.1.0"
+dependencies = [
+ "ash_gap_buffer",
+ "ash_term",
+]
+
+[[package]]
+name = "ash_gap_buffer"
+version = "0.1.0"
+
+[[package]]
+name = "ash_term"
 version = "0.1.0"
 dependencies = [
  "libc",

@@ -1,0 +1,8 @@
+[package]
+name = "ash_editor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ash_gap_buffer = { path = "../ash_gap_buffer" }
+ash_term = { path = "../ash_term" }
