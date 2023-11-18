@@ -1,4 +1,4 @@
-use crate::char_buffer::{Buffer, Cell};
+use crate::char_buffer::Buffer;
 use crate::platform::Writer;
 use crate::style::Style;
 use crate::units::Offset;
@@ -26,8 +26,10 @@ pub fn draw_diff(old: &Buffer, new: &Buffer, w: &mut impl Writer) {
                 continue;
             }
 
-            draw_style_diff(style, new_cell.style, w);
-            style = new_cell.style;
+            let cell = new_cell.unwrap_or_default();
+
+            draw_style_diff(style, cell.style, w);
+            style = cell.style;
 
             let cell_pos = Offset::new(x, y);
             if cell_pos != cursor_pos {
@@ -37,7 +39,7 @@ pub fn draw_diff(old: &Buffer, new: &Buffer, w: &mut impl Writer) {
 
             cursor_pos.x = cursor_pos.x.saturating_add(1);
 
-            w.write_char(new_cell.c);
+            w.write_char(cell.c);
         }
     }
 
@@ -60,13 +62,10 @@ fn draw_no_diff(buf: &Buffer, w: &mut impl Writer) {
 
     for y in 0..buf.size().y {
         for x in 0..buf.size().x {
-            let cell = buf[[x, y]];
-
-            // TODO: this is wrong
-            if cell == Cell::default() {
+            let Some(cell) = buf[[x, y]] else {
                 pos_dirty = true;
                 continue;
-            }
+            };
 
             if pos_dirty {
                 w.set_cursor_pos([x, y]);

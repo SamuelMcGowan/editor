@@ -22,7 +22,7 @@ impl Default for Cell {
 }
 
 pub struct Buffer {
-    data: Vec<Cell>,
+    data: Vec<Option<Cell>>,
 
     size: Offset,
 
@@ -32,7 +32,7 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(size: impl Into<Offset>) -> Self {
         let size = size.into();
-        let data = vec![Cell::default(); size.area()];
+        let data = vec![None; size.area()];
 
         Self {
             data,
@@ -53,16 +53,16 @@ impl Buffer {
         self.len() == 0
     }
 
-    pub fn as_slice(&self) -> &[Cell] {
+    pub fn as_slice(&self) -> &[Option<Cell>] {
         &self.data
     }
 
-    pub fn get(&self, index: impl Into<Offset>) -> Option<&Cell> {
+    pub fn get(&self, index: impl Into<Offset>) -> Option<&Option<Cell>> {
         let index = self.index(index)?;
         self.data.get(index)
     }
 
-    pub fn get_mut(&mut self, index: impl Into<Offset>) -> Option<&mut Cell> {
+    pub fn get_mut(&mut self, index: impl Into<Offset>) -> Option<&mut Option<Cell>> {
         let index = self.index(index)?;
         self.data.get_mut(index)
     }
@@ -81,7 +81,7 @@ impl Buffer {
 }
 
 impl<Idx: Into<Offset>> Index<Idx> for Buffer {
-    type Output = Cell;
+    type Output = Option<Cell>;
 
     fn index(&self, index: Idx) -> &Self::Output {
         self.get(index).expect("indices out of bounds")
@@ -108,11 +108,11 @@ mod tests {
         let mut arr = Buffer::new([10, 10]);
         assert_eq!(arr.len(), 10 * 10);
 
-        arr[[0, 0]] = b;
-        arr[[9, 9]] = c;
+        arr[[0, 0]] = Some(b);
+        arr[[9, 9]] = Some(c);
 
-        assert_eq!(arr[[0, 0]].c, 'b');
-        assert_eq!(arr[[9, 9]].c, 'c');
+        assert_eq!(arr[[0, 0]], Some(b));
+        assert_eq!(arr[[9, 9]], Some(c));
         assert!(arr.get([10, 10]).is_none());
     }
 }
