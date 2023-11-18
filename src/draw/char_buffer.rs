@@ -1,6 +1,6 @@
 use std::ops::{Index, IndexMut};
 
-use crate::style::Style;
+use super::style::Style;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Cell {
