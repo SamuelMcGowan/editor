@@ -6,6 +6,7 @@ use crate::style::{Color, Style, Weight};
 
 mod ansi;
 pub mod linux;
+mod input;
 
 pub trait Terminal: Sized {
     type Writer: Writer;
