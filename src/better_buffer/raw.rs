@@ -51,7 +51,10 @@ impl RawBuf {
         }
 
         // Multiplying cap by 2 can't overflow as cap is at most isize::MAX
-        let new_cap = (self.cap * 2).max(required_cap).max(MIN_RESERVE);
+        let new_cap = (self.cap * 2)
+            .min(isize::MAX as usize)
+            .max(MIN_RESERVE)
+            .max(required_cap);
 
         // `new_cap` can't be zero since `required_cap > self.cap``.
         self.alloc_cap(new_cap);

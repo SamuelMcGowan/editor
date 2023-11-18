@@ -23,6 +23,9 @@ impl GapBuffer {
     }
 
     /// Create a new gap buffer with the given capacity.
+    ///
+    /// # Panics
+    /// Panics if the capacity overflows `isize::MAX`.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: RawBuf::with_capacity(capacity),
@@ -69,6 +72,8 @@ impl GapBuffer {
     }
 
     /// Push a byte to the bytes before the gap.
+    ///
+    /// Panics if the new length overflows `isize::MAX`;
     pub fn push(&mut self, byte: u8) {
         self.reserve(1);
 
@@ -127,6 +132,8 @@ impl GapBuffer {
     }
 
     /// Get a reference to the byte at `index`.
+    ///
+    /// Returns `None` if the index is out of bounds.
     pub fn get(&self, index: usize) -> Option<&u8> {
         let p = self.index_to_ptr(index)?;
 
@@ -135,6 +142,8 @@ impl GapBuffer {
     }
 
     /// Get a mutable reference to the byte at `index`.
+    ///
+    /// Returns `None` if the index is out of bounds.
     pub fn get_mut(&mut self, index: usize) -> Option<&mut u8> {
         let p = self.index_to_ptr(index)?;
 
@@ -165,6 +174,9 @@ impl GapBuffer {
     /// Set the position of the gap.
     ///
     /// This may be an expensive operation if the position is moved far.
+    ///
+    /// # Panics
+    /// Panics if the index is out of bounds.
     pub fn set_gap(&mut self, index: usize) {
         assert!(index <= self.len(), "index out of bounds");
 
@@ -201,7 +213,7 @@ impl GapBuffer {
     /// Ensure that there are at least `additional` bytes of space available in
     /// the gap, allocating if necessary.
     ///
-    /// Will invalidate any pointers!
+    /// Will invalidate any pointers into the buffer if it reallocates!
     pub fn reserve(&mut self, additional: usize) {
         if additional == 0 {
             return;
