@@ -9,17 +9,14 @@ pub struct Cell {
 }
 
 impl Cell {
-    fn char(c: char) -> Self {
-        Self {
-            c,
-            style: Style::default(),
-        }
+    fn new(c: char, style: Style) -> Self {
+        Self { c, style }
     }
 }
 
 impl Default for Cell {
     fn default() -> Self {
-        Self::char(' ')
+        Self::new(' ', Style::default())
     }
 }
 
@@ -100,12 +97,13 @@ impl IndexMut<[u16; 2]> for Buffer {
 #[cfg(test)]
 mod tests {
     use super::{Buffer, Cell};
+    use crate::style::Style;
 
     #[test]
     #[cfg_attr(miri, ignore)]
     fn simple() {
-        let b = Cell::char('b');
-        let c = Cell::char('c');
+        let b = Cell::new('b', Style::default());
+        let c = Cell::new('c', Style::default());
 
         let mut arr = Buffer::new(10, 10);
         assert_eq!(arr.len(), 10 * 10);
