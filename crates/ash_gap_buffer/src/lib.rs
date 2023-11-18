@@ -233,6 +233,9 @@ impl GapBuffer {
     /// the gap, allocating if necessary.
     ///
     /// Will invalidate any pointers into the buffer if it reallocates!
+    ///
+    /// # Panics
+    /// Panics if the length overflows.
     pub fn reserve(&mut self, additional: usize) {
         if additional == 0 {
             return;
@@ -468,11 +471,11 @@ mod tests {
         assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 6);
 
         assert_eq!(buf.front(), &[]);
-        assert_eq!(buf.back(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        assert_eq!(buf.back(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic = "index out of bounds"]
     fn set_gap_out_of_bounds() {
         let mut buf = GapBuffer::new();
         buf.set_gap(1);

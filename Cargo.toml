@@ -4,3 +4,7 @@ resolver = "2"
 
 [workspace.dependencies]
 divan = "0.1.2"
+
+[workspace.lints.clippy]
+semicolon_if_nothing_returned = "warn"
+todo = "warn"

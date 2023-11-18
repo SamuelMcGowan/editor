@@ -21,52 +21,62 @@ impl Offset {
     }
 
     #[inline]
+    #[must_use]
     pub fn min(&self, rhs: Self) -> Self {
         self.join(rhs, u16::min)
     }
 
     #[inline]
+    #[must_use]
     pub fn max(&self, rhs: Self) -> Self {
         self.join(rhs, u16::max)
     }
 
     #[inline]
+    #[must_use]
     pub fn saturating_add(&self, rhs: Self) -> Self {
         self.join(rhs, u16::saturating_add)
     }
 
     #[inline]
+    #[must_use]
     pub fn saturating_sub(&self, rhs: Self) -> Self {
         self.join(rhs, u16::saturating_sub)
     }
 
     #[inline]
+    #[must_use]
     pub fn saturating_mul(&self, rhs: Self) -> Self {
         self.join(rhs, u16::saturating_mul)
     }
 
     #[inline]
+    #[must_use]
     pub fn saturating_div(&self, rhs: Self) -> Self {
         self.join(rhs, u16::saturating_div)
     }
 
     #[inline]
-    pub fn checked_add(&self, rhs: Self) -> Option<Self> {
+    #[must_use]
+    pub fn checked_add(self, rhs: Self) -> Option<Self> {
         self.try_join(rhs, u16::checked_add)
     }
 
     #[inline]
-    pub fn checked_sub(&self, rhs: Self) -> Option<Self> {
+    #[must_use]
+    pub fn checked_sub(self, rhs: Self) -> Option<Self> {
         self.try_join(rhs, u16::checked_sub)
     }
 
     #[inline]
-    pub fn checked_mul(&self, rhs: Self) -> Option<Self> {
+    #[must_use]
+    pub fn checked_mul(self, rhs: Self) -> Option<Self> {
         self.try_join(rhs, u16::checked_mul)
     }
 
     #[inline]
-    pub fn checked_div(&self, rhs: Self) -> Option<Self> {
+    #[must_use]
+    pub fn checked_div(self, rhs: Self) -> Option<Self> {
         self.try_join(rhs, u16::checked_div)
     }
 
@@ -96,7 +106,7 @@ impl Offset {
     }
 
     #[inline]
-    fn try_join(&self, rhs: Self, f: impl Fn(u16, u16) -> Option<u16>) -> Option<Self> {
+    fn try_join(self, rhs: Self, f: impl Fn(u16, u16) -> Option<u16>) -> Option<Self> {
         Some(Self {
             x: f(self.x, rhs.x)?,
             y: f(self.y, rhs.y)?,
@@ -104,7 +114,7 @@ impl Offset {
     }
 
     #[inline]
-    fn join(&self, rhs: Self, f: impl Fn(u16, u16) -> u16) -> Self {
+    fn join(self, rhs: Self, f: impl Fn(u16, u16) -> u16) -> Self {
         Self {
             x: f(self.x, rhs.x),
             y: f(self.x, rhs.x),
@@ -112,7 +122,7 @@ impl Offset {
     }
 
     #[inline]
-    fn join_u16(&self, rhs: u16, f: impl Fn(u16, u16) -> u16) -> Self {
+    fn join_u16(self, rhs: u16, f: impl Fn(u16, u16) -> u16) -> Self {
         Self {
             x: f(self.x, rhs),
             y: f(self.y, rhs),
@@ -120,7 +130,7 @@ impl Offset {
     }
 
     #[inline]
-    fn cmp(&self, rhs: Self, f: impl Fn(&u16, &u16) -> bool) -> OffsetComparison {
+    fn cmp(self, rhs: Self, f: impl Fn(&u16, &u16) -> bool) -> OffsetComparison {
         OffsetComparison {
             x: f(&self.x, &rhs.x),
             y: f(&self.y, &rhs.y),
@@ -130,7 +140,7 @@ impl Offset {
 
 macro_rules! impl_op_offset {
     ($trait:ident, $f:ident) => {
-        impl $trait <Offset> for Offset {
+        impl $trait<Offset> for Offset {
             type Output = Offset;
 
             #[inline]

@@ -52,7 +52,7 @@ impl RawTerm {
         let mut termios = unsafe { get_termios(STDIN_FILENO)? };
         let termios_prev = termios;
 
-        unsafe { libc::cfmakeraw(&mut termios as *mut Termios) };
+        unsafe { libc::cfmakeraw(&mut termios) };
         unsafe { set_termios(STDIN_FILENO, &termios)? };
 
         Ok(Self { termios_prev })

@@ -11,7 +11,7 @@ fn push(bencher: Bencher) {
 
     bencher.bench_local(|| {
         buf.push(0);
-    })
+    });
 }
 
 #[bench]
@@ -22,5 +22,5 @@ fn move_gap(bencher: Bencher) {
     bencher.bench_local(|| {
         buf.set_gap(buf.len());
         buf.set_gap(0);
-    })
+    });
 }

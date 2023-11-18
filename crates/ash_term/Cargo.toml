@@ -7,3 +7,6 @@ edition = "2021"
 bitflags = "2.4.1"
 libc = "0.2.150"
 crossbeam-channel = "0.5.8"
+
+[lints]
+workspace = true
