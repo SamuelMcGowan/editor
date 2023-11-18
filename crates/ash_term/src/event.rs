@@ -22,6 +22,15 @@ pub struct KeyEvent {
     pub modifiers: Modifiers,
 }
 
+impl KeyEvent {
+    pub fn key_no_mods(key_code: KeyCode) -> Self {
+        Self {
+            key_code,
+            modifiers: Modifiers::empty(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyCode {
     Char(char),

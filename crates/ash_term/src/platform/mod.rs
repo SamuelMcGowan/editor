@@ -5,16 +5,19 @@ use crate::event::Event;
 use crate::style::{Color, Style, Weight};
 
 mod ansi;
-pub mod linux;
+mod ansi_event;
 mod input;
+pub mod linux;
 
 pub trait Terminal: Sized {
     type Writer: Writer;
+    type Events: Events;
 
     fn init() -> io::Result<Self>;
     fn size(&self) -> io::Result<(u16, u16)>;
 
     fn writer(&mut self) -> &mut Self::Writer;
+    fn events(&mut self) -> &mut Self::Events;
 }
 
 pub trait Writer {
