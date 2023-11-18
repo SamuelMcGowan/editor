@@ -16,16 +16,20 @@ impl RawBuf {
         }
     }
 
+    /// # Panics
+    /// Panics if `capacity > isize::MAX`.
     pub fn with_capacity(capacity: usize) -> Self {
         let mut buf = Self::new();
-        buf.alloc_cap(capacity);
+        if capacity > 0 {
+            buf.alloc_cap(capacity);
+        }
         buf
     }
 
     /// Only works for vecs that use the global allocator.
     pub fn from_vec(v: Vec<u8>) -> Self {
         let cap = v.capacity();
-        let ptr = NonNull::new(v.leak()).unwrap().cast();
+        let ptr = NonNull::from(v.leak()).cast();
         Self { ptr, cap }
     }
 
@@ -38,6 +42,9 @@ impl RawBuf {
     }
 
     /// Resize so that the new capacity >= the required capacity.
+    ///
+    /// # Panics
+    /// Panics if `required_cap > isize::MAX`.
     pub fn resize_to_fit(&mut self, required_cap: usize) {
         if required_cap <= self.cap {
             return;
@@ -46,10 +53,14 @@ impl RawBuf {
         // Multiplying cap by 2 can't overflow as cap is at most isize::MAX
         let new_cap = (self.cap * 2).max(required_cap).max(MIN_RESERVE);
 
+        // `new_cap` can't be zero since `required_cap > self.cap``.
         self.alloc_cap(new_cap);
     }
 
     /// Resize to the given capacity.
+    ///
+    /// # Panics
+    /// Panics if `new_cap == 0` or `new_cap > isize::MAX`.
     pub fn alloc_cap(&mut self, new_cap: usize) {
         assert!(new_cap > 0, "capacity was zero");
         assert!(

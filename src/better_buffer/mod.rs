@@ -310,6 +310,12 @@ mod tests {
     }
 
     #[test]
+    fn zero_capacity() {
+        let buf = GapBuffer::with_capacity(0);
+        assert_eq!(buf.capacity(), 0);
+    }
+
+    #[test]
     fn resize() {
         let mut buf = GapBuffer::with_capacity(8);
         buf.push_slice(b"hell");
