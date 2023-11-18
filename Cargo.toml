@@ -1,2 +1,6 @@
 [workspace]
 members = ["crates/*"]
+resolver = "2"
+
+[workspace.dependencies]
+divan = "0.1.2"

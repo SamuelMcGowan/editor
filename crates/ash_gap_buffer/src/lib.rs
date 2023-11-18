@@ -14,6 +14,7 @@ pub struct GapBuffer {
 
 impl GapBuffer {
     /// Create a new, empty gap buffer (without allocating).
+    #[inline]
     pub const fn new() -> Self {
         Self {
             inner: RawBuf::new(),
@@ -26,6 +27,7 @@ impl GapBuffer {
     ///
     /// # Panics
     /// Panics if the capacity overflows `isize::MAX`.
+    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             inner: RawBuf::with_capacity(capacity),
@@ -38,6 +40,7 @@ impl GapBuffer {
     ///
     /// Only works for vecs that use the global allocator (we have to deallocate
     /// its contents afterwards!)
+    #[inline]
     pub fn from_vec(v: Vec<u8>) -> Self {
         let len = v.len();
         let inner = RawBuf::from_vec(v);
@@ -50,6 +53,7 @@ impl GapBuffer {
     }
 
     /// Create from a slice.
+    #[inline]
     pub fn from_slice(slice: &[u8]) -> Self {
         let mut buf = Self::new();
         buf.push_slice(slice);
@@ -57,16 +61,19 @@ impl GapBuffer {
     }
 
     /// The total capacity of the gap buffer.
+    #[inline]
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
     }
 
     /// The total number of bytes in the gap buffer (not including the gap).
+    #[inline]
     pub fn len(&self) -> usize {
         self.front_len + self.back_len
     }
 
     /// Whether the gap buffer is empty.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -74,6 +81,7 @@ impl GapBuffer {
     /// Push a byte to the bytes before the gap.
     ///
     /// Panics if the new length overflows `isize::MAX`;
+    #[inline]
     pub fn push(&mut self, byte: u8) {
         self.reserve(1);
 
@@ -83,6 +91,7 @@ impl GapBuffer {
     }
 
     /// Push a byte to the bytes after the gap.
+    #[inline]
     pub fn push_back(&mut self, byte: u8) {
         self.reserve(1);
 
@@ -92,6 +101,7 @@ impl GapBuffer {
     }
 
     /// Push a slice to the bytes before the gap.
+    #[inline]
     pub fn push_slice(&mut self, slice: &[u8]) {
         self.reserve(slice.len());
 
@@ -101,6 +111,7 @@ impl GapBuffer {
     }
 
     /// Push a slice to the bytes after the gap.
+    #[inline]
     pub fn push_slice_back(&mut self, slice: &[u8]) {
         self.reserve(slice.len());
         self.back_len += slice.len();
@@ -109,6 +120,7 @@ impl GapBuffer {
     }
 
     /// Pop a value from the bytes before the gap.
+    #[inline]
     pub fn pop(&mut self) -> Option<u8> {
         if self.front_len == 0 {
             return None;
@@ -120,6 +132,7 @@ impl GapBuffer {
     }
 
     /// Pop a value from the bytes after the gap.
+    #[inline]
     pub fn pop_back(&mut self) -> Option<u8> {
         if self.back_len == 0 {
             return None;
@@ -134,6 +147,7 @@ impl GapBuffer {
     /// Get a reference to the byte at `index`.
     ///
     /// Returns `None` if the index is out of bounds.
+    #[inline]
     pub fn get(&self, index: usize) -> Option<&u8> {
         let p = self.index_to_ptr(index)?;
 
@@ -144,6 +158,7 @@ impl GapBuffer {
     /// Get a mutable reference to the byte at `index`.
     ///
     /// Returns `None` if the index is out of bounds.
+    #[inline]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut u8> {
         let p = self.index_to_ptr(index)?;
 
@@ -152,21 +167,25 @@ impl GapBuffer {
     }
 
     /// The bytes before the gap.
+    #[inline]
     pub fn front(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.front_ptr(), self.front_len) }
     }
 
     /// The bytes before the gap, mutably.
+    #[inline]
     pub fn front_mut(&mut self) -> &mut [u8] {
         unsafe { slice::from_raw_parts_mut(self.front_ptr(), self.front_len) }
     }
 
     /// The bytes after the gap.
+    #[inline]
     pub fn back(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.back_ptr(), self.back_len) }
     }
 
     /// The bytes after the gap, mutably.
+    #[inline]
     pub fn back_mut(&mut self) -> &mut [u8] {
         unsafe { slice::from_raw_parts_mut(self.back_ptr(), self.back_len) }
     }
@@ -239,15 +258,18 @@ impl GapBuffer {
         }
     }
 
+    #[inline]
     fn front_ptr(&self) -> *mut u8 {
         self.inner.as_ptr()
     }
 
+    #[inline]
     fn gap_ptr(&self) -> *mut u8 {
         // Safety: resulting pointer is within the allocation
         unsafe { self.front_ptr().add(self.front_len) }
     }
 
+    #[inline]
     fn back_ptr(&self) -> *mut u8 {
         let back_offset = self.capacity() - self.back_len;
 
@@ -255,6 +277,7 @@ impl GapBuffer {
         unsafe { self.front_ptr().add(back_offset) }
     }
 
+    #[inline]
     fn index_to_ptr(&self, index: usize) -> Option<*mut u8> {
         if index >= self.len() {
             return None;
@@ -269,18 +292,21 @@ impl GapBuffer {
         Some(unsafe { self.front_ptr().add(index) })
     }
 
+    #[inline]
     fn gap_len(&self) -> usize {
         self.capacity() - self.len()
     }
 }
 
 impl From<Vec<u8>> for GapBuffer {
+    #[inline]
     fn from(v: Vec<u8>) -> Self {
         Self::from_vec(v)
     }
 }
 
 impl From<&[u8]> for GapBuffer {
+    #[inline]
     fn from(slice: &[u8]) -> Self {
         Self::from_slice(slice)
     }
@@ -289,12 +315,14 @@ impl From<&[u8]> for GapBuffer {
 impl Index<usize> for GapBuffer {
     type Output = u8;
 
+    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("index out of bounds")
     }
 }
 
 impl IndexMut<usize> for GapBuffer {
+    #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index).expect("index out of bounds")
     }

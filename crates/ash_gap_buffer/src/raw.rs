@@ -9,6 +9,7 @@ pub struct RawBuf {
 }
 
 impl RawBuf {
+    #[inline]
     pub const fn new() -> Self {
         Self {
             ptr: NonNull::dangling(),
@@ -18,6 +19,7 @@ impl RawBuf {
 
     /// # Panics
     /// Panics if `capacity > isize::MAX`.
+    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         let mut buf = Self::new();
         if capacity > 0 {
@@ -27,16 +29,19 @@ impl RawBuf {
     }
 
     /// Only works for vecs that use the global allocator.
+    #[inline]
     pub fn from_vec(v: Vec<u8>) -> Self {
         let cap = v.capacity();
         let ptr = NonNull::from(v.leak()).cast();
         Self { ptr, cap }
     }
 
+    #[inline]
     pub fn capacity(&self) -> usize {
         self.cap
     }
 
+    #[inline]
     pub fn as_ptr(&self) -> *mut u8 {
         self.ptr.as_ptr()
     }
