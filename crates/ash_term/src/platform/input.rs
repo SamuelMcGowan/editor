@@ -5,7 +5,7 @@ use std::{fmt, io};
 use crossbeam_channel::{Receiver, RecvTimeoutError};
 
 #[derive(Default, Clone)]
-pub(crate) struct Bytes {
+pub struct Bytes {
     buf: [u8; 32],
     len: usize,
 }
@@ -31,7 +31,7 @@ impl fmt::Debug for Bytes {
     }
 }
 
-pub(crate) struct PollingStdin {
+pub struct PollingStdin {
     recv: Receiver<io::Result<Bytes>>,
 }
 

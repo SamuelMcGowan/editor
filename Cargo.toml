@@ -6,5 +6,5 @@ resolver = "2"
 divan = "0.1.2"
 
 [workspace.lints.clippy]
-semicolon_if_nothing_returned = "warn"
+correctness = "deny"
 todo = "warn"

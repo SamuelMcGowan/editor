@@ -57,8 +57,7 @@ impl RawBuf {
 
         // Multiplying cap by 2 can't overflow as cap is at most isize::MAX
         let new_cap = (self.cap * 2)
-            .min(isize::MAX as usize)
-            .max(MIN_RESERVE)
+            .clamp(MIN_RESERVE, isize::MAX as usize)
             .max(required_cap);
 
         // `new_cap` can't be zero since `required_cap > self.cap``.
@@ -85,10 +84,7 @@ impl RawBuf {
             unsafe { alloc::realloc(self.ptr.as_ptr(), old_layout, new_layout.size()) }
         };
 
-        self.ptr = match NonNull::new(new_ptr) {
-            Some(ptr) => ptr,
-            None => alloc::handle_alloc_error(new_layout),
-        };
+        self.ptr = NonNull::new(new_ptr).unwrap_or_else(|| alloc::handle_alloc_error(new_layout));
         self.cap = new_cap;
     }
 }
