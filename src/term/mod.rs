@@ -1,6 +1,5 @@
 use std::io;
 
-pub mod ansi_buffer;
 mod sys;
 
 pub struct Term {

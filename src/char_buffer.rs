@@ -1,7 +1,6 @@
 use std::ops::{Index, IndexMut};
 
-#[derive(Debug, Clone, Copy)]
-pub struct Style;
+use crate::style::Style;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Cell {
@@ -11,7 +10,10 @@ pub struct Cell {
 
 impl Cell {
     fn char(c: char) -> Self {
-        Self { c, style: Style }
+        Self {
+            c,
+            style: Style::default(),
+        }
     }
 }
 
