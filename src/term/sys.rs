@@ -50,7 +50,7 @@ impl RawTerm {
         }
     }
 
-    pub fn get_size(&self) -> io::Result<(u16, u16)> {
+    pub fn size(&self) -> io::Result<(u16, u16)> {
         unsafe { get_size(STDIN_FILENO) }
     }
 }
@@ -61,7 +61,6 @@ impl Drop for RawTerm {
     }
 }
 
-#[derive(Default)]
 pub struct RawStdout;
 
 impl Write for RawStdout {
