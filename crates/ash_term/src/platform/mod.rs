@@ -1,5 +1,7 @@
 use std::io;
+use std::time::Instant;
 
+use crate::event::Event;
 use crate::style::{Color, Style, Weight};
 
 mod ansi;
@@ -40,4 +42,8 @@ pub trait Writer {
         self.set_weight(style.weight);
         self.set_underline(style.underline);
     }
+}
+
+pub trait Events {
+    fn read_with_deadline(&mut self, deadline: Instant) -> io::Result<Option<Event>>;
 }
