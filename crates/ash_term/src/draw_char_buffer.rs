@@ -1,9 +1,9 @@
-use crate::char_buffer::Buffer;
+use crate::char_buffer::CharBuffer;
 use crate::platform::Writer;
 use crate::style::Style;
 use crate::units::Offset;
 
-pub fn draw_diff(old: &Buffer, new: &Buffer, w: &mut impl Writer) {
+pub fn draw_diff(old: &CharBuffer, new: &CharBuffer, w: &mut impl Writer) {
     if old.size() != new.size() {
         draw_no_diff(new, w);
         return;
@@ -49,7 +49,7 @@ pub fn draw_diff(old: &Buffer, new: &Buffer, w: &mut impl Writer) {
     }
 }
 
-fn draw_no_diff(buf: &Buffer, w: &mut impl Writer) {
+fn draw_no_diff(buf: &CharBuffer, w: &mut impl Writer) {
     w.clear_all();
 
     w.set_cursor_home();

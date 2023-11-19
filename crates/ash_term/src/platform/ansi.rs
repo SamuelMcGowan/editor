@@ -20,6 +20,10 @@ impl<W: Write> AnsiWriter<W> {
         }
     }
 
+    pub fn buf_len(&self) -> usize {
+        self.buf.len()
+    }
+
     pub fn inner(&self) -> &W {
         &self.writer
     }
