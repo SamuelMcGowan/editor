@@ -50,6 +50,8 @@ pub fn draw_diff(old: &CharBuffer, new: &CharBuffer, w: &mut impl Writer) {
 }
 
 fn draw_no_diff(buf: &CharBuffer, w: &mut impl Writer) {
+    log::debug!("redrawing");
+
     w.clear_all();
 
     w.set_cursor_home();

@@ -11,7 +11,29 @@ use ash_term::units::Offset;
 const FRAME_RATE: Duration = Duration::from_millis(17);
 
 fn main() -> Result<()> {
+    init_logging()?;
+
     Editor::new()?.run()
+}
+
+fn init_logging() -> Result<()> {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            let now = chrono::Local::now();
+
+            out.finish(format_args!(
+                "[{} {} {}] {}",
+                now.format("%Y/%m/%d %H:%M:%S"),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Debug)
+        .chain(fern::log_file("output.log")?)
+        .apply()?;
+
+    Ok(())
 }
 
 pub struct Editor {

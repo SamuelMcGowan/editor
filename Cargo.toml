@@ -3,6 +3,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.dependencies]
+log = "0.4.20"
 divan = "0.1.2"
 
 [workspace.lints.clippy]
