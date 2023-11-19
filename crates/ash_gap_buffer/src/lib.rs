@@ -4,20 +4,23 @@ use std::cmp::Ordering;
 use std::ops::{Index, IndexMut};
 use std::{ptr, slice};
 
-use self::raw::RawBuf;
+use self::raw::RawVec;
 
-pub struct GapBuffer {
-    inner: RawBuf,
+pub struct GapVec<T> {
+    inner: RawVec<T>,
     front_len: usize,
     back_len: usize,
 }
 
-impl GapBuffer {
+impl<T> GapVec<T> {
     /// Create a new, empty gap buffer (without allocating).
+    ///
+    /// # Panics
+    /// Panics if `T` is a zero-sized type.
     #[inline]
     pub const fn new() -> Self {
         Self {
-            inner: RawBuf::new(),
+            inner: RawVec::new(),
             front_len: 0,
             back_len: 0,
         }
@@ -26,11 +29,12 @@ impl GapBuffer {
     /// Create a new gap buffer with the given capacity.
     ///
     /// # Panics
-    /// Panics if the capacity overflows `isize::MAX`.
+    /// Panics if the required capacity in bytes overflows `isize::MAX` or if
+    /// `T` is a zero-sized type.
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            inner: RawBuf::with_capacity(capacity),
+            inner: RawVec::with_capacity(capacity),
             front_len: 0,
             back_len: 0,
         }
@@ -40,10 +44,13 @@ impl GapBuffer {
     ///
     /// Only works for vecs that use the global allocator (we have to deallocate
     /// its contents afterwards!)
+    ///
+    /// # Panics
+    /// Panics if `T` is a zero-sized type.
     #[inline]
-    pub fn from_vec(v: Vec<u8>) -> Self {
+    pub fn from_vec(v: Vec<T>) -> Self {
         let len = v.len();
-        let inner = RawBuf::from_vec(v);
+        let inner = RawVec::from_vec(v);
 
         Self {
             inner,
@@ -53,8 +60,11 @@ impl GapBuffer {
     }
 
     /// Create from a slice.
+    ///
+    /// # Panics
+    /// Panics if `T` is a zero-sized type.
     #[inline]
-    pub fn from_slice(slice: &[u8]) -> Self {
+    pub fn from_slice(slice: &[T]) -> Self {
         let mut buf = Self::new();
         buf.push_slice(slice);
         buf
@@ -66,7 +76,7 @@ impl GapBuffer {
         self.inner.capacity()
     }
 
-    /// The total number of bytes in the gap buffer (not including the gap).
+    /// The total number of elements in the gap buffer (not including the gap).
     #[inline]
     pub fn len(&self) -> usize {
         self.front_len + self.back_len
@@ -78,31 +88,35 @@ impl GapBuffer {
         self.len() == 0
     }
 
-    /// Push a byte to the bytes before the gap.
+    /// Push a element to the elements before the gap.
     ///
-    /// Panics if the new length overflows `isize::MAX`;
+    /// Panics if the required capacity in bytes overflows `isize::MAX`
     #[inline]
-    pub fn push(&mut self, byte: u8) {
+    pub fn push(&mut self, element: T) {
         self.reserve(1);
 
-        unsafe { ptr::write(self.gap_ptr(), byte) };
+        unsafe { ptr::write(self.gap_ptr(), element) };
 
         self.front_len += 1;
     }
 
-    /// Push a byte to the bytes after the gap.
+    /// Push a element to the elements after the gap.
+    ///
+    /// Panics if the required capacity in bytes overflows `isize::MAX`
     #[inline]
-    pub fn push_back(&mut self, byte: u8) {
+    pub fn push_back(&mut self, element: T) {
         self.reserve(1);
 
         self.back_len += 1;
 
-        unsafe { ptr::write(self.back_ptr(), byte) }
+        unsafe { ptr::write(self.back_ptr(), element) }
     }
 
-    /// Push a slice to the bytes before the gap.
+    /// Push a slice to the elements before the gap.
+    ///
+    /// Panics if the required capacity in bytes overflows `isize::MAX`
     #[inline]
-    pub fn push_slice(&mut self, slice: &[u8]) {
+    pub fn push_slice(&mut self, slice: &[T]) {
         self.reserve(slice.len());
 
         unsafe { ptr::copy_nonoverlapping(slice.as_ptr(), self.gap_ptr(), slice.len()) };
@@ -110,18 +124,20 @@ impl GapBuffer {
         self.front_len += slice.len();
     }
 
-    /// Push a slice to the bytes after the gap.
+    /// Push a slice to the elements after the gap.
+    ///
+    /// Panics if the required capacity in bytes overflows `isize::MAX`
     #[inline]
-    pub fn push_slice_back(&mut self, slice: &[u8]) {
+    pub fn push_slice_back(&mut self, slice: &[T]) {
         self.reserve(slice.len());
         self.back_len += slice.len();
 
         unsafe { ptr::copy_nonoverlapping(slice.as_ptr(), self.back_ptr(), slice.len()) }
     }
 
-    /// Pop a value from the bytes before the gap.
+    /// Pop a value from the elements before the gap.
     #[inline]
-    pub fn pop(&mut self) -> Option<u8> {
+    pub fn pop(&mut self) -> Option<T> {
         if self.front_len == 0 {
             return None;
         }
@@ -131,62 +147,62 @@ impl GapBuffer {
         Some(unsafe { ptr::read(self.gap_ptr()) })
     }
 
-    /// Pop a value from the bytes after the gap.
+    /// Pop a value from the elements after the gap.
     #[inline]
-    pub fn pop_back(&mut self) -> Option<u8> {
+    pub fn pop_back(&mut self) -> Option<T> {
         if self.back_len == 0 {
             return None;
         }
 
-        let byte = unsafe { ptr::read(self.back_ptr()) };
+        let element = unsafe { ptr::read(self.back_ptr()) };
         self.back_len -= 1;
 
-        Some(byte)
+        Some(element)
     }
 
-    /// Get a reference to the byte at `index`.
+    /// Get a reference to the element at `index`.
     ///
     /// Returns `None` if the index is out of bounds.
     #[inline]
-    pub fn get(&self, index: usize) -> Option<&u8> {
+    pub fn get(&self, index: usize) -> Option<&T> {
         let p = self.index_to_ptr(index)?;
 
         // Safety: pointer is valid for returned lifetime.
         Some(unsafe { &*p })
     }
 
-    /// Get a mutable reference to the byte at `index`.
+    /// Get a mutable reference to the element at `index`.
     ///
     /// Returns `None` if the index is out of bounds.
     #[inline]
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut u8> {
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         let p = self.index_to_ptr(index)?;
 
         // Safety: pointer is valid for returned lifetime.
         Some(unsafe { &mut *p })
     }
 
-    /// The bytes before the gap.
+    /// The elements before the gap.
     #[inline]
-    pub fn front(&self) -> &[u8] {
+    pub fn front(&self) -> &[T] {
         unsafe { slice::from_raw_parts(self.front_ptr(), self.front_len) }
     }
 
-    /// The bytes before the gap, mutably.
+    /// The elements before the gap, mutably.
     #[inline]
-    pub fn front_mut(&mut self) -> &mut [u8] {
+    pub fn front_mut(&mut self) -> &mut [T] {
         unsafe { slice::from_raw_parts_mut(self.front_ptr(), self.front_len) }
     }
 
-    /// The bytes after the gap.
+    /// The elements after the gap.
     #[inline]
-    pub fn back(&self) -> &[u8] {
+    pub fn back(&self) -> &[T] {
         unsafe { slice::from_raw_parts(self.back_ptr(), self.back_len) }
     }
 
-    /// The bytes after the gap, mutably.
+    /// The elements after the gap, mutably.
     #[inline]
-    pub fn back_mut(&mut self) -> &mut [u8] {
+    pub fn back_mut(&mut self) -> &mut [T] {
         unsafe { slice::from_raw_parts_mut(self.back_ptr(), self.back_len) }
     }
 
@@ -229,13 +245,14 @@ impl GapBuffer {
         }
     }
 
-    /// Ensure that there are at least `additional` bytes of space available in
+    /// Ensure that there are at least `additional` spaces available in
     /// the gap, allocating if necessary.
     ///
     /// Will invalidate any pointers into the buffer if it reallocates!
     ///
     /// # Panics
-    /// Panics if the length overflows.
+    /// Panics if the length overflows or the required capacity in bytes >
+    /// `isize::MAX`.
     pub fn reserve(&mut self, additional: usize) {
         if additional == 0 {
             return;
@@ -262,18 +279,18 @@ impl GapBuffer {
     }
 
     #[inline]
-    fn front_ptr(&self) -> *mut u8 {
+    fn front_ptr(&self) -> *mut T {
         self.inner.as_ptr()
     }
 
     #[inline]
-    fn gap_ptr(&self) -> *mut u8 {
+    fn gap_ptr(&self) -> *mut T {
         // Safety: resulting pointer is within the allocation
         unsafe { self.front_ptr().add(self.front_len) }
     }
 
     #[inline]
-    fn back_ptr(&self) -> *mut u8 {
+    fn back_ptr(&self) -> *mut T {
         let back_offset = self.capacity() - self.back_len;
 
         // Safety: resulting pointer is within the allocation
@@ -281,7 +298,7 @@ impl GapBuffer {
     }
 
     #[inline]
-    fn index_to_ptr(&self, index: usize) -> Option<*mut u8> {
+    fn index_to_ptr(&self, index: usize) -> Option<*mut T> {
         if index >= self.len() {
             return None;
         }
@@ -301,22 +318,22 @@ impl GapBuffer {
     }
 }
 
-impl From<Vec<u8>> for GapBuffer {
+impl<T> From<Vec<T>> for GapVec<T> {
     #[inline]
-    fn from(v: Vec<u8>) -> Self {
+    fn from(v: Vec<T>) -> Self {
         Self::from_vec(v)
     }
 }
 
-impl From<&[u8]> for GapBuffer {
+impl<T> From<&[T]> for GapVec<T> {
     #[inline]
-    fn from(slice: &[u8]) -> Self {
+    fn from(slice: &[T]) -> Self {
         Self::from_slice(slice)
     }
 }
 
-impl Index<usize> for GapBuffer {
-    type Output = u8;
+impl<T> Index<usize> for GapVec<T> {
+    type Output = T;
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
@@ -324,7 +341,7 @@ impl Index<usize> for GapBuffer {
     }
 }
 
-impl IndexMut<usize> for GapBuffer {
+impl<T> IndexMut<usize> for GapVec<T> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index).expect("index out of bounds")
@@ -333,7 +350,8 @@ impl IndexMut<usize> for GapBuffer {
 
 #[cfg(test)]
 mod tests {
-    use super::GapBuffer;
+    // Ensure we can't infer the wrong type.
+    type GapBuffer = super::GapVec<u16>;
 
     #[test]
     fn from_vec() {
@@ -346,7 +364,7 @@ mod tests {
         assert_eq!(buf.len(), 5);
         assert_eq!(buf.front_len, 5);
         assert_eq!(buf.back_len, 0);
-        assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), cap);
+        assert_eq!(elements_diff(buf.back_ptr(), buf.front_ptr()), cap);
 
         assert_eq!(buf.front(), &[0, 1, 2, 3, 4]);
         assert_eq!(buf.back(), &[]);
@@ -361,18 +379,18 @@ mod tests {
     #[test]
     fn resize() {
         let mut buf = GapBuffer::with_capacity(8);
-        buf.push_slice(b"hell");
-        buf.push_slice_back(b"yeah");
+        buf.push_slice(&[0, 1, 2, 3]);
+        buf.push_slice_back(&[4, 5, 6, 7]);
 
         assert_eq!(buf.capacity(), 8);
-        assert_eq!(buf.front(), b"hell");
-        assert_eq!(buf.back(), b"yeah");
+        assert_eq!(buf.front(), &[0, 1, 2, 3]);
+        assert_eq!(buf.back(), &[4, 5, 6, 7]);
 
-        buf.push_back(b' ');
+        buf.push_back(100);
 
         assert_eq!(buf.capacity(), 16);
-        assert_eq!(buf.front(), b"hell");
-        assert_eq!(buf.back(), b" yeah");
+        assert_eq!(buf.front(), &[0, 1, 2, 3]);
+        assert_eq!(buf.back(), &[100, 4, 5, 6, 7]);
     }
 
     #[test]
@@ -387,7 +405,7 @@ mod tests {
         assert_eq!(buf.len(), 10);
         assert_eq!(buf.front_len, 10);
         assert_eq!(buf.back_len, 0);
-        assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 16);
+        assert_eq!(elements_diff(buf.back_ptr(), buf.front_ptr()), 16);
 
         assert_eq!(buf.front(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
@@ -410,7 +428,7 @@ mod tests {
         assert_eq!(buf.len(), 10);
         assert_eq!(buf.front_len, 0);
         assert_eq!(buf.back_len, 10);
-        assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 6);
+        assert_eq!(elements_diff(buf.back_ptr(), buf.front_ptr()), 6);
 
         assert_eq!(buf.back(), &[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
 
@@ -424,33 +442,33 @@ mod tests {
     #[test]
     fn push_slice() {
         let mut buf = GapBuffer::new();
-        buf.push_slice(b"hello ");
-        buf.push_slice(b"world");
+        buf.push_slice(&[0, 1, 2, 3, 4, 5]);
+        buf.push_slice(&[6, 7, 8, 9, 10]);
 
         assert_eq!(buf.capacity(), 16);
         assert_eq!(buf.len(), 11);
         assert_eq!(buf.front_len, 11);
         assert_eq!(buf.back_len, 0);
-        assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 16);
+        assert_eq!(elements_diff(buf.back_ptr(), buf.front_ptr()), 16);
 
-        assert_eq!(buf.front(), b"hello world");
-        assert_eq!(buf.back(), b"");
+        assert_eq!(buf.front(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        assert_eq!(buf.back(), &[]);
     }
 
     #[test]
     fn push_slice_back() {
         let mut buf = GapBuffer::new();
-        buf.push_slice_back(b"world");
-        buf.push_slice_back(b"hello ");
+        buf.push_slice_back(&[6, 7, 8, 9, 10]);
+        buf.push_slice_back(&[0, 1, 2, 3, 4, 5]);
 
         assert_eq!(buf.capacity(), 16);
         assert_eq!(buf.len(), 11);
         assert_eq!(buf.front_len, 0);
         assert_eq!(buf.back_len, 11);
-        assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 5);
+        assert_eq!(elements_diff(buf.back_ptr(), buf.front_ptr()), 5);
 
-        assert_eq!(buf.front(), b"");
-        assert_eq!(buf.back(), b"hello world");
+        assert_eq!(buf.front(), &[]);
+        assert_eq!(buf.back(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     }
 
     #[test]
@@ -468,7 +486,7 @@ mod tests {
         assert_eq!(buf.len(), 10);
         assert_eq!(buf.front_len, 0);
         assert_eq!(buf.back_len, 10);
-        assert_eq!(ptr_diff(buf.back_ptr(), buf.front_ptr()), 6);
+        assert_eq!(elements_diff(buf.back_ptr(), buf.front_ptr()), 6);
 
         assert_eq!(buf.front(), &[]);
         assert_eq!(buf.back(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
@@ -485,15 +503,15 @@ mod tests {
     fn get() {
         let mut buf = GapBuffer::new();
 
-        buf.push_slice(b"hello");
+        buf.push_slice(&[0, 1, 2, 3, 4]);
         buf.set_gap(1);
 
-        assert_eq!(buf.front(), b"h");
-        assert_eq!(buf.back(), b"ello");
+        assert_eq!(buf.front(), &[0]);
+        assert_eq!(buf.back(), &[1, 2, 3, 4]);
 
-        for (i, mut byte) in b"hello".iter().copied().enumerate() {
-            assert_eq!(&buf[i], &byte);
-            assert_eq!(&mut buf[i], &mut byte);
+        for (i, mut element) in [0, 1, 2, 3, 4].iter().copied().enumerate() {
+            assert_eq!(&buf[i], &element);
+            assert_eq!(&mut buf[i], &mut element);
         }
 
         assert_eq!(buf.get(5), None);
@@ -502,12 +520,14 @@ mod tests {
     #[test]
     fn mutable_slice() {
         let mut buf = GapBuffer::new();
-        buf.push_slice(b"hello");
-        buf.front_mut()[0] = b'f';
-        assert_eq!(buf.front(), b"fello");
+        buf.push_slice(&[0, 1, 2, 3, 4]);
+        buf.front_mut()[0] = 100;
+        assert_eq!(buf.front(), &[100, 1, 2, 3, 4]);
     }
 
-    fn ptr_diff(a: *const u8, b: *const u8) -> usize {
-        a as usize - b as usize
+    fn elements_diff<T>(a: *const T, b: *const T) -> usize {
+        let byte_diff = a as usize - b as usize;
+        assert_eq!(byte_diff % std::mem::size_of::<T>(), 0);
+        byte_diff / std::mem::size_of::<T>()
     }
 }
