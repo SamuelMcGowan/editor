@@ -38,7 +38,7 @@ pub fn parse_event(bytes: &[u8]) -> Option<Event> {
                     let (key_code, modifiers) =
                         if let Some(idx) = rest.iter().position(|&byte| byte == b';') {
                             let (key_code, modifiers) = rest.split_at(idx);
-                            Some((key_code, parse_modifiers(modifiers)?))
+                            Some((key_code, parse_modifiers(&modifiers[1..])?))
                         } else {
                             Some((rest, Modifiers::empty()))
                         }?;
