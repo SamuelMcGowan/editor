@@ -90,10 +90,10 @@ impl RawBuf {
             None
         } else {
             // Multiplying current cap by 2 can't overflow as it is at most isize::MAX
-
             let new_cap = (self.cap * 2)
                 .clamp(Self::MIN_RESERVE, Self::MAX_RESERVE)
                 .max(required_cap);
+
             Some(new_cap)
         }
     }
