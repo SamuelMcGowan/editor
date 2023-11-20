@@ -9,6 +9,13 @@ pub struct GapBuffer {
     back_len: usize,
 }
 
+impl Default for GapBuffer {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GapBuffer {
     pub const fn new() -> Self {
         Self {
@@ -232,6 +239,16 @@ impl GapBuffer {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut u8> + '_ {
         let (front, back) = self.front_and_back_mut();
         front.iter_mut().chain(back.iter_mut())
+    }
+
+    #[inline]
+    pub(crate) fn front_len(&self) -> usize {
+        self.front_len
+    }
+
+    #[inline]
+    pub(crate) fn back_len(&self) -> usize {
+        self.back_len
     }
 
     #[inline]
