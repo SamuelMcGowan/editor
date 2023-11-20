@@ -41,6 +41,34 @@ impl GapBuffer {
         self.front_len += 1;
     }
 
+    #[inline]
+    pub fn push_back(&mut self, byte: u8) {
+        self.grow_for_push(1);
+        self.back_len += 1;
+        unsafe { ptr::write(self.back_ptr(), byte) };
+    }
+
+    #[inline]
+    pub fn pop(&mut self) -> Option<u8> {
+        if self.front_len > 0 {
+            self.front_len -= 1;
+            Some(unsafe { ptr::read(self.gap_ptr()) })
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn pop_back(&mut self) -> Option<u8> {
+        if self.back_len > 0 {
+            let byte = unsafe { ptr::read(self.back_ptr()) };
+            self.back_len -= 1;
+            Some(byte)
+        } else {
+            None
+        }
+    }
+
     /// Panics if `new_cap > isize::MAX`.
     fn grow_for_push(&mut self, additional: usize) {
         let required = self
@@ -114,15 +142,36 @@ mod tests {
     }
 
     #[test]
-    fn push() {
+    fn push_pop() {
         let mut buf = GapBuffer::new();
 
         buf.push(10);
         assert_eq!(buf.capacity(), 64);
         assert_eq!(buf.len(), 1);
 
-        buf.push(10);
+        buf.push(20);
         assert_eq!(buf.capacity(), 64);
         assert_eq!(buf.len(), 2);
+
+        assert_eq!(buf.pop(), Some(20));
+        assert_eq!(buf.pop(), Some(10));
+        assert_eq!(buf.pop(), None);
+    }
+
+    #[test]
+    fn push_pop_back() {
+        let mut buf = GapBuffer::new();
+
+        buf.push_back(10);
+        assert_eq!(buf.capacity(), 64);
+        assert_eq!(buf.len(), 1);
+
+        buf.push_back(20);
+        assert_eq!(buf.capacity(), 64);
+        assert_eq!(buf.len(), 2);
+
+        assert_eq!(buf.pop_back(), Some(20));
+        assert_eq!(buf.pop_back(), Some(10));
+        assert_eq!(buf.pop_back(), None);
     }
 }
