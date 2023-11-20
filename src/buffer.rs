@@ -234,6 +234,36 @@ impl GapBuffer {
     }
 }
 
+impl From<Vec<u8>> for GapBuffer {
+    #[inline]
+    fn from(v: Vec<u8>) -> Self {
+        let len = v.len();
+        Self {
+            inner: v.into(),
+            front_len: len,
+            back_len: 0,
+        }
+    }
+}
+
+impl From<&[u8]> for GapBuffer {
+    #[inline]
+    fn from(slice: &[u8]) -> Self {
+        let mut buf = Self::new();
+        buf.push_slice(slice);
+        buf
+    }
+}
+
+impl<const N: usize> From<&[u8; N]> for GapBuffer {
+    #[inline]
+    fn from(slice: &[u8; N]) -> Self {
+        let mut buf = Self::new();
+        buf.push_slice(slice.as_slice());
+        buf
+    }
+}
+
 /// `cap` should be less than or equal to `isize::MAX` to avoid overflow.
 #[inline]
 fn calc_new_capacity(cap: usize, required: usize) -> Option<usize> {
@@ -411,8 +441,7 @@ mod tests {
     #[test]
     #[should_panic = "capacity smaller than length"]
     fn shrink_too_much() {
-        let mut buf = GapBuffer::new();
-        buf.push_slice(b"hello");
+        let mut buf = GapBuffer::from(b"hello");
         buf.shrink_to(4);
     }
 }
