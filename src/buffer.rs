@@ -105,12 +105,13 @@ impl GapBuffer {
     }
 }
 
+/// `cap` should be less than or equal to `isize::MAX` to avoid overflow.
 #[inline]
 fn calc_new_capacity(cap: usize, required: usize) -> Option<usize> {
     if required <= cap {
         None
     } else {
-        // Can't overflow as `cap < isize::MAX`.
+        // Can't overflow as `cap <= isize::MAX`.
         let min_cap = cap + (cap / 16).max(64);
         Some(required.max(min_cap))
     }
