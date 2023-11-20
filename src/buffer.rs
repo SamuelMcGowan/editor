@@ -92,6 +92,32 @@ impl GapBuffer {
     }
 
     #[inline]
+    #[must_use = "must handle how many bytes were written"]
+    pub fn pop_slice(&mut self, slice: &mut [u8]) -> usize {
+        let len = slice.len().min(self.front_len);
+
+        self.front_len -= len;
+
+        // slice cannot alias self
+        unsafe { ptr::copy_nonoverlapping(self.gap_ptr(), slice.as_mut_ptr(), len) };
+
+        len
+    }
+
+    #[inline]
+    #[must_use = "must handle how many bytes were written"]
+    pub fn pop_slice_back(&mut self, slice: &mut [u8]) -> usize {
+        let len = slice.len().min(self.back_len);
+
+        // slice cannot alias self
+        unsafe { ptr::copy_nonoverlapping(self.back_ptr(), slice.as_mut_ptr(), len) };
+
+        self.back_len -= len;
+
+        len
+    }
+
+    #[inline]
     pub fn front(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.front_ptr(), self.front_len) }
     }
@@ -246,5 +272,49 @@ mod tests {
         buf.push_slice_back(b"world");
         buf.back_mut()[0] = b'q';
         assert_eq!(buf.back(), b"qorld");
+    }
+
+    #[test]
+    fn pop_slice() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello");
+
+        let mut dest = [0; 2];
+        assert_eq!(buf.pop_slice(&mut dest), 2);
+
+        assert_eq!(buf.front(), b"hel");
+        assert_eq!(&dest, b"lo");
+    }
+
+    #[test]
+    fn pop_slice_back() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice_back(b"hello");
+
+        let mut dest = [0; 2];
+        assert_eq!(buf.pop_slice_back(&mut dest), 2);
+
+        assert_eq!(buf.back(), b"llo");
+        assert_eq!(&dest, b"he");
+    }
+
+    #[test]
+    fn pop_too_much_slice() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello");
+
+        let mut dest = [0; 7];
+        assert_eq!(buf.pop_slice(&mut dest), 5);
+
+        assert_eq!(&dest, b"hello\0\0");
+        assert_eq!(buf.front(), b"");
+
+        buf.push_slice_back(b"hello");
+
+        let mut dest = [0; 7];
+        assert_eq!(buf.pop_slice_back(&mut dest), 5);
+
+        assert_eq!(&dest, b"hello\0\0");
+        assert_eq!(buf.back(), b"");
     }
 }
