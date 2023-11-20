@@ -339,6 +339,12 @@ impl<T> GapVec<T> {
     }
 }
 
+impl<T> Drop for GapVec<T> {
+    fn drop(&mut self) {
+        while self.pop().is_some() {}
+    }
+}
+
 impl<T> From<Vec<T>> for GapVec<T> {
     #[inline]
     fn from(v: Vec<T>) -> Self {
