@@ -38,14 +38,14 @@ impl RawBuf {
 
         if new_cap == 0 {
             // Previous capacity wasn't zero, so there is an allocation.
-            unsafe { alloc::dealloc(self.as_ptr(), self.layout()) };
+            unsafe { alloc::dealloc(self.as_ptr_mut(), self.layout()) };
         } else {
             let new_layout = Layout::array::<u8>(new_cap).unwrap();
 
             let new_ptr = if self.cap == 0 {
                 unsafe { alloc::alloc(new_layout) }
             } else {
-                unsafe { alloc::realloc(self.as_ptr(), self.layout(), new_layout.size()) }
+                unsafe { alloc::realloc(self.as_ptr_mut(), self.layout(), new_layout.size()) }
             };
 
             self.ptr =
@@ -61,7 +61,12 @@ impl RawBuf {
     }
 
     #[inline]
-    pub fn as_ptr(&self) -> *mut u8 {
+    pub fn as_ptr(&self) -> *const u8 {
+        self.ptr.as_ptr()
+    }
+
+    #[inline]
+    pub fn as_ptr_mut(&mut self) -> *mut u8 {
         self.ptr.as_ptr()
     }
 
@@ -87,7 +92,7 @@ impl Drop for RawBuf {
             return;
         }
 
-        unsafe { alloc::dealloc(self.as_ptr(), self.layout()) };
+        unsafe { alloc::dealloc(self.as_ptr_mut(), self.layout()) };
     }
 }
 

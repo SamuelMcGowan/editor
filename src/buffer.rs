@@ -1,4 +1,4 @@
-use std::ptr;
+use std::{ptr, slice};
 
 use crate::raw::RawBuf;
 
@@ -37,7 +37,7 @@ impl GapBuffer {
     #[inline]
     pub fn push(&mut self, byte: u8) {
         self.grow_for_push(1);
-        unsafe { ptr::write(self.gap_ptr(), byte) };
+        unsafe { ptr::write(self.gap_ptr().cast_mut(), byte) };
         self.front_len += 1;
     }
 
@@ -45,7 +45,29 @@ impl GapBuffer {
     pub fn push_back(&mut self, byte: u8) {
         self.grow_for_push(1);
         self.back_len += 1;
-        unsafe { ptr::write(self.back_ptr(), byte) };
+        unsafe { ptr::write(self.back_ptr().cast_mut(), byte) };
+    }
+
+    #[inline]
+    pub fn push_slice(&mut self, slice: &[u8]) {
+        self.grow_for_push(slice.len());
+
+        // slice cannot alias self
+        unsafe { ptr::copy_nonoverlapping(slice.as_ptr(), self.gap_ptr().cast_mut(), slice.len()) };
+
+        self.front_len += slice.len();
+    }
+
+    #[inline]
+    pub fn push_slice_back(&mut self, slice: &[u8]) {
+        self.grow_for_push(slice.len());
+
+        self.back_len += slice.len();
+
+        // slice cannot alias self
+        unsafe {
+            ptr::copy_nonoverlapping(slice.as_ptr(), self.back_ptr().cast_mut(), slice.len())
+        };
     }
 
     #[inline]
@@ -69,6 +91,26 @@ impl GapBuffer {
         }
     }
 
+    #[inline]
+    pub fn front(&self) -> &[u8] {
+        unsafe { slice::from_raw_parts(self.front_ptr(), self.front_len) }
+    }
+
+    #[inline]
+    pub fn back(&self) -> &[u8] {
+        unsafe { slice::from_raw_parts(self.back_ptr(), self.back_len) }
+    }
+
+    #[inline]
+    pub fn front_mut(&mut self) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self.front_ptr().cast_mut(), self.front_len) }
+    }
+
+    #[inline]
+    pub fn back_mut(&mut self) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self.back_ptr().cast_mut(), self.back_len) }
+    }
+
     /// Panics if `new_cap > isize::MAX`.
     fn grow_for_push(&mut self, additional: usize) {
         let required = self
@@ -83,23 +125,24 @@ impl GapBuffer {
 
             // Use offset to get previous back pointer because the buffer could have moved.
             let back_ptr_prev = unsafe { self.front_ptr().add(prev_back_offset) };
-            let back_ptr = self.back_ptr();
+            let back_ptr = self.back_ptr().cast_mut();
 
             unsafe { ptr::copy(back_ptr_prev, back_ptr, self.back_len) };
         }
     }
 
     #[inline]
-    fn front_ptr(&mut self) -> *mut u8 {
+    fn front_ptr(&self) -> *const u8 {
         self.inner.as_ptr()
     }
 
-    fn gap_ptr(&mut self) -> *mut u8 {
+    #[inline]
+    fn gap_ptr(&self) -> *const u8 {
         unsafe { self.front_ptr().add(self.front_len) }
     }
 
     #[inline]
-    fn back_ptr(&mut self) -> *mut u8 {
+    fn back_ptr(&self) -> *const u8 {
         let back_offset = self.inner.capacity() - self.back_len;
         unsafe { self.front_ptr().add(back_offset) }
     }
@@ -174,5 +217,34 @@ mod tests {
         assert_eq!(buf.pop_back(), Some(20));
         assert_eq!(buf.pop_back(), Some(10));
         assert_eq!(buf.pop_back(), None);
+    }
+
+    #[test]
+    fn push_and_get_slices() {
+        let mut buf = GapBuffer::new();
+
+        buf.push_slice(b"hello");
+        assert_eq!(buf.capacity(), 64);
+        assert_eq!(buf.front_len, 5);
+
+        buf.push_slice_back(b" world");
+        assert_eq!(buf.capacity(), 64);
+        assert_eq!(buf.back_len, 6);
+
+        assert_eq!(buf.front(), b"hello");
+        assert_eq!(buf.back(), b" world");
+    }
+
+    #[test]
+    fn get_mut_slices() {
+        let mut buf = GapBuffer::new();
+
+        buf.push_slice(b"hello");
+        buf.front_mut()[0] = b'y';
+        assert_eq!(buf.front(), b"yello");
+
+        buf.push_slice_back(b"world");
+        buf.back_mut()[0] = b'q';
+        assert_eq!(buf.back(), b"qorld");
     }
 }
