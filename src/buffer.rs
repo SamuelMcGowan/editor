@@ -36,21 +36,21 @@ impl GapBuffer {
     /// Panics if `new_cap > isize::MAX`.
     #[inline]
     pub fn push(&mut self, byte: u8) {
-        self.grow_for_push(1);
+        self.reserve(1);
         unsafe { ptr::write(self.gap_ptr().cast_mut(), byte) };
         self.front_len += 1;
     }
 
     #[inline]
     pub fn push_back(&mut self, byte: u8) {
-        self.grow_for_push(1);
+        self.reserve(1);
         self.back_len += 1;
         unsafe { ptr::write(self.back_ptr().cast_mut(), byte) };
     }
 
     #[inline]
     pub fn push_slice(&mut self, slice: &[u8]) {
-        self.grow_for_push(slice.len());
+        self.reserve(slice.len());
 
         // slice cannot alias self
         unsafe { ptr::copy_nonoverlapping(slice.as_ptr(), self.gap_ptr().cast_mut(), slice.len()) };
@@ -60,7 +60,7 @@ impl GapBuffer {
 
     #[inline]
     pub fn push_slice_back(&mut self, slice: &[u8]) {
-        self.grow_for_push(slice.len());
+        self.reserve(slice.len());
 
         self.back_len += slice.len();
 
@@ -137,8 +137,24 @@ impl GapBuffer {
         unsafe { slice::from_raw_parts_mut(self.back_ptr().cast_mut(), self.back_len) }
     }
 
+    #[inline]
+    pub fn clear(&mut self) {
+        self.front_len = 0;
+        self.back_len = 0;
+    }
+
+    #[inline]
+    pub fn truncate_front(&mut self, len: usize) {
+        self.front_len = self.front_len.min(len);
+    }
+
+    #[inline]
+    pub fn truncate_back(&mut self, len: usize) {
+        self.back_len = self.back_len.min(len);
+    }
+
     /// Panics if `new_cap > isize::MAX`.
-    fn grow_for_push(&mut self, additional: usize) {
+    pub fn reserve(&mut self, additional: usize) {
         let required = self
             .len()
             .checked_add(additional)
@@ -207,7 +223,7 @@ mod tests {
     fn grow() {
         let mut buf = GapBuffer::new();
 
-        buf.grow_for_push(1);
+        buf.reserve(1);
         assert_eq!(buf.capacity(), 64);
     }
 
