@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn grow() {
-        let buf = RawBuf::new();
+        let mut buf = RawBuf::new();
 
         assert_eq!(buf.grow_cap(0), None);
         assert_eq!(buf.grow_cap(1), Some(RawBuf::MIN_RESERVE));
@@ -169,5 +169,8 @@ mod tests {
             buf.grow_cap(RawBuf::MIN_RESERVE + 1),
             Some(RawBuf::MIN_RESERVE + 1)
         );
+
+        buf.set_capacity(5);
+        assert_eq!(buf.grow_cap(6), Some(10));
     }
 }
