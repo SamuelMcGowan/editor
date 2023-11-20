@@ -70,6 +70,11 @@ impl RawBuf {
     }
 
     #[inline]
+    pub fn capacity(&self) -> usize {
+        self.cap
+    }
+
+    #[inline]
     pub fn as_ptr(&self) -> *mut u8 {
         self.ptr.as_ptr()
     }
@@ -77,6 +82,15 @@ impl RawBuf {
     #[inline]
     fn layout(&self) -> Layout {
         Layout::array::<u8>(self.cap).unwrap()
+    }
+}
+
+impl From<Vec<u8>> for RawBuf {
+    fn from(v: Vec<u8>) -> Self {
+        // `Vec` also uses a dangling pointer for an unallocated vector.
+        let cap = v.capacity();
+        let ptr = NonNull::from(v.leak()).cast();
+        Self { ptr, cap }
     }
 }
 
