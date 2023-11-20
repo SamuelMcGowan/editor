@@ -18,6 +18,16 @@ impl GapBuffer {
         }
     }
 
+    /// # Panics
+    /// Panics if `capacity > isize::MAX`.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            inner: RawBuf::with_capacity(capacity),
+            front_len: 0,
+            back_len: 0,
+        }
+    }
+
     #[inline]
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
@@ -315,11 +325,37 @@ mod tests {
     }
 
     #[test]
+    fn from_vec() {
+        let mut buf = GapBuffer::from(b"hello world".to_vec());
+        assert_eq!(buf.front(), b"hello world");
+        assert_eq!(buf.back(), b"");
+
+        buf.push_slice_back(b"-wide-web");
+        assert_eq!(buf.front(), b"hello world");
+        assert_eq!(buf.back(), b"-wide-web");
+    }
+
+    #[test]
     fn grow() {
         let mut buf = GapBuffer::new();
 
         buf.reserve(1);
         assert_eq!(buf.capacity(), 64);
+    }
+
+    #[test]
+    fn grow_again() {
+        let mut buf = GapBuffer::with_capacity(10);
+
+        buf.push(1);
+        buf.push_back(2);
+        assert_eq!(buf.capacity(), 10);
+
+        buf.reserve(10);
+        assert_eq!(buf.capacity(), 74);
+
+        assert_eq!(buf.front(), &[1]);
+        assert_eq!(buf.back(), &[2]);
     }
 
     #[test]
@@ -354,6 +390,23 @@ mod tests {
         assert_eq!(buf.pop_back(), Some(20));
         assert_eq!(buf.pop_back(), Some(10));
         assert_eq!(buf.pop_back(), None);
+    }
+
+    #[test]
+    fn push_empty_slices() {
+        let mut buf = GapBuffer::new();
+
+        buf.push_slice(b"");
+        assert_eq!(buf.front(), b"");
+
+        buf.push_slice_back(b"");
+        assert_eq!(buf.back(), b"");
+
+        buf.push(1);
+        buf.push_back(2);
+
+        assert_eq!(buf.front(), &[1]);
+        assert_eq!(buf.back(), &[2]);
     }
 
     #[test]
