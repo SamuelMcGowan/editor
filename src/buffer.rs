@@ -139,6 +139,17 @@ impl GapBuffer {
     }
 
     #[inline]
+    pub fn get(&self, index: usize) -> Option<&u8> {
+        self.index_to_ptr(index).map(|ptr| unsafe { &*ptr })
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut u8> {
+        self.index_to_ptr(index)
+            .map(|ptr| unsafe { &mut *ptr.cast_mut() })
+    }
+
+    #[inline]
     pub fn clear(&mut self) {
         self.front_len = 0;
         self.back_len = 0;
@@ -206,6 +217,20 @@ impl GapBuffer {
     fn back_ptr(&self) -> *const u8 {
         let back_offset = self.inner.capacity() - self.back_len;
         unsafe { self.front_ptr().add(back_offset) }
+    }
+
+    #[inline]
+    fn index_to_ptr(&self, index: usize) -> Option<*const u8> {
+        if index < self.front_len {
+            Some(unsafe { self.front_ptr().add(index) })
+        } else {
+            let index = index - self.front_len;
+            if index < self.back_len {
+                Some(unsafe { self.back_ptr().add(index) })
+            } else {
+                None
+            }
+        }
     }
 }
 
@@ -351,6 +376,21 @@ mod tests {
 
         assert_eq!(&dest, b"hello\0\0");
         assert_eq!(buf.back(), b"");
+    }
+
+    #[test]
+    fn get() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello");
+        buf.push_slice_back(b" world");
+
+        for (i, &b) in b"hello world".iter().enumerate() {
+            let mut byte = b;
+            assert_eq!(buf.get(i), Some(&byte));
+            assert_eq!(buf.get_mut(i), Some(&mut byte));
+        }
+
+        assert_eq!(buf.get(11), None);
     }
 
     #[test]
