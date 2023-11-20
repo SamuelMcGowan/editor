@@ -7,9 +7,6 @@ pub struct RawBuf {
 }
 
 impl RawBuf {
-    const MIN_RESERVE: usize = 8;
-    const MAX_RESERVE: usize = isize::MAX as usize;
-
     #[inline]
     pub const fn new() -> Self {
         Self {
@@ -25,15 +22,6 @@ impl RawBuf {
         let mut buf = Self::new();
         buf.set_capacity(capacity);
         buf
-    }
-
-    /// # Panics
-    /// Panics if `required_cap > isize::MAX`.
-    pub fn grow(&mut self, required_cap: usize) {
-        if let Some(new_cap) = self.grow_cap(required_cap) {
-            // We allow `set_capacity` to check that the new capacity <= `isize::MAX`.
-            self.set_capacity(new_cap);
-        }
     }
 
     /// # Panics
@@ -80,22 +68,6 @@ impl RawBuf {
     #[inline]
     fn layout(&self) -> Layout {
         Layout::array::<u8>(self.cap).unwrap()
-    }
-
-    #[inline]
-    #[must_use]
-    fn grow_cap(&self, required_cap: usize) -> Option<usize> {
-        // Vec::push(&mut self, value)
-        if required_cap <= self.cap {
-            None
-        } else {
-            // Multiplying current cap by 2 can't overflow as it is at most isize::MAX
-            let new_cap = (self.cap * 2)
-                .clamp(Self::MIN_RESERVE, Self::MAX_RESERVE)
-                .max(required_cap);
-
-            Some(new_cap)
-        }
     }
 }
 
@@ -157,20 +129,5 @@ mod tests {
     #[should_panic = "capacity overflows `isize::MAX`"]
     fn cap_too_large() {
         RawBuf::with_capacity(isize::MAX as usize + 1);
-    }
-
-    #[test]
-    fn grow() {
-        let mut buf = RawBuf::new();
-
-        assert_eq!(buf.grow_cap(0), None);
-        assert_eq!(buf.grow_cap(1), Some(RawBuf::MIN_RESERVE));
-        assert_eq!(
-            buf.grow_cap(RawBuf::MIN_RESERVE + 1),
-            Some(RawBuf::MIN_RESERVE + 1)
-        );
-
-        buf.set_capacity(5);
-        assert_eq!(buf.grow_cap(6), Some(10));
     }
 }

@@ -10,6 +10,19 @@ pub struct GapBuffer {
 }
 
 impl GapBuffer {
+    pub const fn new() -> Self {
+        Self {
+            inner: RawBuf::new(),
+            front_len: 0,
+            back_len: 0,
+        }
+    }
+
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
     #[inline]
     pub fn len(&self) -> usize {
         self.front_len + self.back_len
@@ -20,11 +33,22 @@ impl GapBuffer {
         self.len() == 0
     }
 
-    /// Panics if new_cap > isize::MAX.
-    fn grow_for_push(&mut self, additional: usize) {
-        let new_cap = calc_new_capacity(self.len(), additional);
+    /// Panics if `new_cap > isize::MAX`.
+    #[inline]
+    pub fn push(&mut self, byte: u8) {
+        self.grow_for_push(1);
+        unsafe { ptr::write(self.gap_ptr(), byte) };
+        self.front_len += 1;
+    }
 
-        if new_cap > self.inner.capacity() {
+    /// Panics if `new_cap > isize::MAX`.
+    fn grow_for_push(&mut self, additional: usize) {
+        let required = self
+            .len()
+            .checked_add(additional)
+            .expect("capacity overflow");
+
+        if let Some(new_cap) = calc_new_capacity(self.capacity(), required) {
             let prev_back_offset = self.inner.capacity() - self.back_len;
 
             self.inner.set_capacity(new_cap);
@@ -37,37 +61,68 @@ impl GapBuffer {
         }
     }
 
-    fn front_ptr(&self) -> *mut u8 {
+    #[inline]
+    fn front_ptr(&mut self) -> *mut u8 {
         self.inner.as_ptr()
     }
 
-    fn back_ptr(&self) -> *mut u8 {
+    fn gap_ptr(&mut self) -> *mut u8 {
+        unsafe { self.front_ptr().add(self.front_len) }
+    }
+
+    #[inline]
+    fn back_ptr(&mut self) -> *mut u8 {
         let back_offset = self.inner.capacity() - self.back_len;
         unsafe { self.front_ptr().add(back_offset) }
     }
 }
 
 #[inline]
-fn calc_new_capacity(len: usize, additional: usize) -> usize {
-    if additional == 0 {
-        return len;
+fn calc_new_capacity(cap: usize, required: usize) -> Option<usize> {
+    if required <= cap {
+        None
+    } else {
+        // Can't overflow as `cap < isize::MAX`.
+        let min_cap = cap + (cap / 16).max(64);
+        Some(required.max(min_cap))
     }
-
-    let min_gap_size = (len / 16).max(64);
-    let new_gap_size = additional.max(min_gap_size);
-
-    len.checked_add(new_gap_size)
-        .expect("required capacity too large")
 }
 
 #[cfg(test)]
 mod tests {
+    use super::GapBuffer;
     use crate::buffer::calc_new_capacity;
 
     #[test]
+    #[cfg_attr(miri, ignore)]
     fn calc_capacity() {
-        assert_eq!(calc_new_capacity(0, 0), 0);
-        assert_eq!(calc_new_capacity(0, 1), 64);
-        assert_eq!(calc_new_capacity(64, 1), 128);
+        assert_eq!(calc_new_capacity(0, 0), None);
+        assert_eq!(calc_new_capacity(0, 1), Some(64));
+        assert_eq!(calc_new_capacity(64, 2), None);
+        assert_eq!(calc_new_capacity(64, 64), None);
+        assert_eq!(calc_new_capacity(64, 65), Some(128));
+        assert_eq!(calc_new_capacity(0, 123), Some(123));
+        assert_eq!(calc_new_capacity(1600, 1601), Some(1700));
+    }
+
+    #[test]
+    fn grow() {
+        let mut buf = GapBuffer::new();
+
+        buf.grow_for_push(1);
+        assert_eq!(buf.capacity(), 64);
+    }
+
+    #[test]
+    fn push() {
+        let mut buf = GapBuffer::new();
+
+        buf.push(10);
+        assert_eq!(buf.capacity(), 64);
+        assert_eq!(buf.len(), 1);
+
+        buf.push(10);
+        assert_eq!(buf.capacity(), 64);
+        assert_eq!(buf.len(), 2);
     }
 }
