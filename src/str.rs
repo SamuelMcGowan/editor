@@ -30,6 +30,14 @@ impl GapString {
         }
     }
 
+    pub fn push_str(&mut self, s: &str) {
+        self.inner.push_slice(s.as_bytes());
+    }
+
+    pub fn push_str_back(&mut self, s: &str) {
+        self.inner.push_slice_back(s.as_bytes());
+    }
+
     pub fn pop(&mut self) -> Option<char> {
         let ch = self.front().chars().next_back()?;
         let new_len = self.inner.front_len() - ch.len_utf8();
