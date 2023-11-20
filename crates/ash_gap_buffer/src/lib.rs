@@ -1,4 +1,5 @@
 mod raw;
+pub mod string;
 
 use std::cmp::Ordering;
 use std::ops::{Index, IndexMut};
@@ -276,6 +277,26 @@ impl<T> GapVec<T> {
         if !ptr::eq(back_ptr, prev_back_ptr) {
             unsafe { ptr::copy(prev_back_ptr, back_ptr, self.back_len) };
         }
+    }
+
+    /// Set the length of the vector.
+    ///
+    /// # Safety
+    /// - The length must be <= capacity.
+    /// - Any newly-included elements must be initialized.
+    #[inline]
+    pub unsafe fn set_len_front(&mut self, len: usize) {
+        self.front_len = len;
+    }
+
+    /// Set the length of the vector.
+    ///
+    /// # Safety
+    /// - The length must be <= capacity.
+    /// - Any newly-included elements must be initialized.
+    #[inline]
+    pub unsafe fn set_len_back(&mut self, len: usize) {
+        self.back_len = len;
     }
 
     #[inline]
