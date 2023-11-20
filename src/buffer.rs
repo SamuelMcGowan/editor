@@ -33,6 +33,7 @@ impl GapBuffer {
         self.len() == 0
     }
 
+    /// # Panics
     /// Panics if `new_cap > isize::MAX`.
     #[inline]
     pub fn push(&mut self, byte: u8) {
@@ -153,6 +154,7 @@ impl GapBuffer {
         self.back_len = self.back_len.min(len);
     }
 
+    /// # Panics
     /// Panics if `new_cap > isize::MAX`.
     pub fn reserve(&mut self, additional: usize) {
         let required = self
@@ -166,11 +168,28 @@ impl GapBuffer {
             self.inner.set_capacity(new_cap);
 
             // Use offset to get previous back pointer because the buffer could have moved.
-            let back_ptr_prev = unsafe { self.front_ptr().add(prev_back_offset) };
+            let prev_back_ptr = unsafe { self.front_ptr().add(prev_back_offset) };
             let back_ptr = self.back_ptr().cast_mut();
 
-            unsafe { ptr::copy(back_ptr_prev, back_ptr, self.back_len) };
+            unsafe { ptr::copy(prev_back_ptr, back_ptr, self.back_len) };
         }
+    }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.shrink_to(self.len());
+    }
+
+    /// # Panics
+    /// Panics if `capacity` is smaller than the current length.
+    pub fn shrink_to(&mut self, capacity: usize) {
+        assert!(capacity >= self.len(), "capacity smaller than length");
+
+        let new_back_offset = capacity - self.back_len;
+        let new_back_ptr = unsafe { self.front_ptr().cast_mut().add(new_back_offset) };
+
+        unsafe { ptr::copy(self.back_ptr(), new_back_ptr, self.back_len) };
+
+        self.inner.set_capacity(capacity);
     }
 
     #[inline]
@@ -332,5 +351,28 @@ mod tests {
 
         assert_eq!(&dest, b"hello\0\0");
         assert_eq!(buf.back(), b"");
+    }
+
+    #[test]
+    fn shrink_to() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello");
+        buf.push_slice_back(b" world");
+
+        assert_eq!(buf.capacity(), 64);
+
+        buf.shrink_to_fit();
+        assert_eq!(buf.capacity(), 11);
+
+        assert_eq!(buf.front(), b"hello");
+        assert_eq!(buf.back(), b" world");
+    }
+
+    #[test]
+    #[should_panic = "capacity smaller than length"]
+    fn shrink_too_much() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello");
+        buf.shrink_to(4);
     }
 }
