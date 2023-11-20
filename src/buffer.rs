@@ -139,6 +139,16 @@ impl GapBuffer {
     }
 
     #[inline]
+    pub fn front_and_back_mut(&mut self) -> (&mut [u8], &mut [u8]) {
+        unsafe {
+            let front = slice::from_raw_parts_mut(self.front_ptr().cast_mut(), self.front_len);
+            let back = slice::from_raw_parts_mut(self.back_ptr().cast_mut(), self.back_len);
+
+            (front, back)
+        }
+    }
+
+    #[inline]
     pub fn get(&self, index: usize) -> Option<&u8> {
         self.index_to_ptr(index).map(|ptr| unsafe { &*ptr })
     }
@@ -201,6 +211,17 @@ impl GapBuffer {
         unsafe { ptr::copy(self.back_ptr(), new_back_ptr, self.back_len) };
 
         self.inner.set_capacity(capacity);
+    }
+
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
+        self.front().iter().chain(self.back()).copied()
+    }
+
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut u8> + '_ {
+        let (front, back) = self.front_and_back_mut();
+        front.iter_mut().chain(back.iter_mut())
     }
 
     #[inline]
@@ -365,6 +386,20 @@ mod tests {
     }
 
     #[test]
+    fn get_both_mut_slices() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello");
+        buf.push_slice_back(b"world");
+
+        let (front, back) = buf.front_and_back_mut();
+        front[0] = b'y';
+        back[0] = b'q';
+
+        assert_eq!(buf.front(), b"yello");
+        assert_eq!(buf.back(), b"qorld");
+    }
+
+    #[test]
     fn pop_slice() {
         let mut buf = GapBuffer::new();
         buf.push_slice(b"hello");
@@ -421,6 +456,27 @@ mod tests {
         }
 
         assert_eq!(buf.get(11), None);
+    }
+
+    #[test]
+    fn iterators() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello");
+        buf.push_slice_back(b" world");
+
+        let mut bytes = buf.iter();
+        for &b in b"hello world".iter() {
+            assert_eq!(bytes.next(), Some(b));
+        }
+
+        assert_eq!(bytes.next(), None);
+        drop(bytes);
+
+        let mut bytes_mut = buf.iter_mut();
+        for &b in b"hello world".iter() {
+            let mut byte = b;
+            assert_eq!(bytes_mut.next(), Some(&mut byte));
+        }
     }
 
     #[test]
