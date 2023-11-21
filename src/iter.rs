@@ -1,6 +1,7 @@
 use std::iter::{Chain, FusedIterator};
 
 /// An iterator that skips over the gap.
+#[derive(Debug, Clone)]
 pub struct SkipGapIter<I> {
     inner: Chain<I, I>,
 }
@@ -40,6 +41,7 @@ impl<I: FusedIterator> FusedIterator for SkipGapIter<I> {}
 /// This is an implementation detail - a reimplementation of
 /// [`std::str::CharIndices`], required internally to set the character offsets
 /// correctly for the back of the buffer.
+#[derive(Debug, Clone)]
 pub struct CharIndices<'a> {
     front_offset: usize,
     iter: std::str::Chars<'a>,

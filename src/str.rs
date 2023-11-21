@@ -1,4 +1,4 @@
-use std::str::{Chars, Utf8Error};
+use std::str::{Bytes, Chars, Utf8Error};
 
 use crate::buffer::GapBuffer;
 use crate::iter::SkipGapIter;
@@ -163,6 +163,11 @@ impl GapString {
     #[inline]
     pub fn shrink_to(&mut self, capacity: usize) {
         self.inner.shrink_to(capacity);
+    }
+
+    #[inline]
+    pub fn bytes(&self) -> SkipGapIter<Bytes> {
+        SkipGapIter::new(self.front().bytes(), self.back().bytes())
     }
 
     #[inline]

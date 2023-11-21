@@ -265,7 +265,7 @@ impl GapBuffer {
     }
 
     #[inline]
-    pub fn iter(&self) -> SkipGapIter<slice::Iter<u8>> {
+    pub fn iter(&self) -> SkipGapIter<slice::Iter<'_, u8>> {
         SkipGapIter::new(self.front().iter(), self.back().iter())
     }
 
