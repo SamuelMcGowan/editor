@@ -65,6 +65,7 @@ impl GapString {
     }
 
     pub fn set_gap(&mut self, index: usize) {
+        assert!(index <= self.len(), "index out of bounds");
         assert!(self.is_char_boundary(index), "index not on char boundary");
         self.inner.set_gap(index);
     }
@@ -219,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "index not on char boundary"]
+    #[should_panic = "index out of bounds"]
     fn set_gap_out_of_bounds() {
         let mut s = GapString::new();
         s.set_gap(1);
