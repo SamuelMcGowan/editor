@@ -165,6 +165,12 @@ impl GapString {
     }
 
     #[inline]
+    pub fn into_string(self) -> String {
+        let bytes = self.inner.into_vec();
+        unsafe { String::from_utf8_unchecked(bytes) }
+    }
+
+    #[inline]
     fn from_buffer_unchecked(inner: GapBuffer) -> Self {
         Self { inner }
     }
@@ -188,11 +194,11 @@ impl TryFrom<GapBuffer> for GapString {
     type Error = Utf8Error;
 
     #[inline]
-    fn try_from(buffer: GapBuffer) -> Result<Self, Self::Error> {
-        let _ = std::str::from_utf8(buffer.front())?;
-        let _ = std::str::from_utf8(buffer.back())?;
+    fn try_from(buf: GapBuffer) -> Result<Self, Self::Error> {
+        let _ = std::str::from_utf8(buf.front())?;
+        let _ = std::str::from_utf8(buf.back())?;
 
-        Ok(Self::from_buffer_unchecked(buffer))
+        Ok(Self::from_buffer_unchecked(buf))
     }
 }
 
@@ -203,6 +209,13 @@ impl TryFrom<Vec<u8>> for GapString {
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         let _ = std::str::from_utf8(&bytes)?;
         Ok(Self::from_buffer_unchecked(bytes.into()))
+    }
+}
+
+impl From<GapString> for String {
+    #[inline]
+    fn from(s: GapString) -> Self {
+        s.into_string()
     }
 }
 

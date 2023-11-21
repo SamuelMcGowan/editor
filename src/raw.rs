@@ -39,6 +39,7 @@ impl RawBuf {
         if new_cap == 0 {
             // Previous capacity wasn't zero, so there is an allocation.
             unsafe { alloc::dealloc(self.as_ptr_mut(), self.layout()) };
+            // Pointer is already dangling so no need to set.
         } else {
             let new_layout = Layout::array::<u8>(new_cap).unwrap();
 

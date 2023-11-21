@@ -275,6 +275,27 @@ impl GapBuffer {
     }
 
     #[inline]
+    pub fn into_vec(mut self) -> Vec<u8> {
+        // `Vec` should handle this case (dangling pointer) fine, but the invariants of
+        // `Vec::from_raw_parts` don't mention it so we'll avoid it.
+        if self.capacity() == 0 {
+            return vec![];
+        }
+
+        self.shrink_to_fit();
+
+        // Safety: all invariants upheld by data structure and above `shrink_to_fit`
+        // call.
+        let v = unsafe {
+            Vec::from_raw_parts(self.front_ptr().cast_mut(), self.len(), self.capacity())
+        };
+
+        std::mem::forget(self);
+
+        v
+    }
+
+    #[inline]
     pub(crate) fn front_len(&self) -> usize {
         self.front_len
     }
@@ -345,6 +366,13 @@ impl<const N: usize> From<&[u8; N]> for GapBuffer {
     }
 }
 
+impl From<GapBuffer> for Vec<u8> {
+    #[inline]
+    fn from(buf: GapBuffer) -> Self {
+        buf.into_vec()
+    }
+}
+
 /// `cap` should be less than or equal to `isize::MAX` to avoid overflow.
 #[inline]
 fn calc_new_capacity(cap: usize, required: usize) -> Option<usize> {
@@ -383,6 +411,17 @@ mod tests {
         buf.push_slice_back(b"-wide-web");
         assert_eq!(buf.front(), b"hello world");
         assert_eq!(buf.back(), b"-wide-web");
+    }
+
+    #[test]
+    fn into_vec() {
+        let mut buf = GapBuffer::new();
+        buf.push_slice(b"hello");
+        buf.push_slice_back(b" world");
+        assert!(buf.len() < buf.capacity());
+
+        let v = buf.into_vec();
+        assert_eq!(v.as_slice(), b"hello world");
     }
 
     #[test]
