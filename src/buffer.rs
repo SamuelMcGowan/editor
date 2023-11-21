@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::{ptr, slice};
 
 use crate::raw::RawBuf;
@@ -133,6 +134,38 @@ impl GapBuffer {
         self.back_len -= len;
 
         len
+    }
+
+    pub fn set_gap(&mut self, index: usize) {
+        assert!(index <= self.len(), "index out of bounds");
+
+        // If capacity is zero, `index` will equal `self.front_len`, so no capacity
+        // check needed.
+
+        match index.cmp(&self.front_len) {
+            Ordering::Less => {
+                let src_ptr = unsafe { self.front_ptr().add(index) };
+                let len = self.front_len - index;
+
+                self.front_len = index;
+                self.back_len += len;
+
+                unsafe { ptr::copy(src_ptr, self.back_ptr().cast_mut(), len) };
+            }
+
+            Ordering::Equal => {}
+
+            Ordering::Greater => {
+                let src_ptr = self.back_ptr();
+                let dest_ptr = self.gap_ptr().cast_mut();
+                let len = index - self.front_len;
+
+                self.front_len = index;
+                self.back_len -= len;
+
+                unsafe { ptr::copy(src_ptr, dest_ptr, len) };
+            }
+        }
     }
 
     #[inline]
@@ -440,6 +473,35 @@ mod tests {
 
         assert_eq!(buf.front(), b"hello");
         assert_eq!(buf.back(), b" world");
+    }
+
+    #[test]
+    fn set_gap() {
+        let mut buf = GapBuffer::new();
+        for i in 0..10 {
+            buf.push(i);
+        }
+
+        assert_eq!(buf.front(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(buf.back(), &[]);
+
+        buf.set_gap(0);
+        assert_eq!(buf.front_len, 0);
+        assert_eq!(buf.back_len, 10);
+        assert_eq!(buf.front(), &[]);
+        assert_eq!(buf.back(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+        buf.set_gap(5);
+        assert_eq!(buf.front_len, 5);
+        assert_eq!(buf.back_len, 5);
+        assert_eq!(buf.front(), &[0, 1, 2, 3, 4]);
+        assert_eq!(buf.back(), &[5, 6, 7, 8, 9]);
+
+        buf.set_gap(10);
+        assert_eq!(buf.front_len, 10);
+        assert_eq!(buf.back_len, 0);
+        assert_eq!(buf.front(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(buf.back(), &[]);
     }
 
     #[test]
