@@ -1,3 +1,5 @@
+use std::str::Utf8Error;
+
 use crate::buffer::GapBuffer;
 
 #[derive(Default)]
@@ -179,6 +181,28 @@ impl From<&str> for GapString {
     #[inline]
     fn from(value: &str) -> Self {
         Self::from_buffer_unchecked(value.as_bytes().into())
+    }
+}
+
+impl TryFrom<GapBuffer> for GapString {
+    type Error = Utf8Error;
+
+    #[inline]
+    fn try_from(buffer: GapBuffer) -> Result<Self, Self::Error> {
+        let _ = std::str::from_utf8(buffer.front())?;
+        let _ = std::str::from_utf8(buffer.back())?;
+
+        Ok(Self::from_buffer_unchecked(buffer))
+    }
+}
+
+impl TryFrom<Vec<u8>> for GapString {
+    type Error = Utf8Error;
+
+    #[inline]
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        let _ = std::str::from_utf8(&bytes)?;
+        Ok(Self::from_buffer_unchecked(bytes.into()))
     }
 }
 
