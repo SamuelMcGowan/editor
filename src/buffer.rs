@@ -505,6 +505,19 @@ mod tests {
     }
 
     #[test]
+    fn set_gap_empty() {
+        let mut buf = GapBuffer::new();
+        buf.set_gap(0);
+    }
+
+    #[test]
+    #[should_panic = "index out of bounds"]
+    fn set_gap_out_of_bounds() {
+        let mut buf = GapBuffer::new();
+        buf.set_gap(1);
+    }
+
+    #[test]
     fn get_mut_slices() {
         let mut buf = GapBuffer::new();
 

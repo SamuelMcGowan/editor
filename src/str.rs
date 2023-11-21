@@ -12,6 +12,18 @@ impl GapString {
         }
     }
 
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
     pub fn push(&mut self, ch: char) {
         match ch.len_utf8() {
             1 => self.inner.push(ch as u8),
@@ -50,6 +62,18 @@ impl GapString {
         let new_len = self.inner.back_len() - ch.len_utf8();
         self.inner.truncate_back(new_len);
         Some(ch)
+    }
+
+    pub fn set_gap(&mut self, index: usize) {
+        assert!(self.is_char_boundary(index), "index not on char boundary");
+        self.inner.set_gap(index);
+    }
+
+    pub fn is_char_boundary(&self, index: usize) -> bool {
+        match self.inner.get(index) {
+            None => index == self.len(),
+            Some(&b) => is_utf8_char_boundary(b),
+        }
     }
 
     pub fn front(&self) -> &str {
@@ -131,6 +155,11 @@ impl From<&str> for GapString {
     }
 }
 
+fn is_utf8_char_boundary(byte: u8) -> bool {
+    // Taken from std::is_char_boundary
+    (byte as i8) >= -0x40
+}
+
 #[cfg(test)]
 mod tests {
     use super::GapString;
@@ -161,6 +190,39 @@ mod tests {
         assert_eq!(s.pop_back(), Some('£'));
         assert_eq!(s.pop_back(), Some('a'));
         assert_eq!(s.pop_back(), None);
+    }
+
+    #[test]
+    fn set_gap() {
+        let mut s = GapString::from("that will be £5 please");
+
+        s.set_gap(15);
+        assert_eq!(s.front(), "that will be £");
+        assert_eq!(s.back(), "5 please");
+
+        s.set_gap(23);
+        assert_eq!(s.front(), "that will be £5 please");
+        assert_eq!(s.back(), "");
+    }
+
+    #[test]
+    #[should_panic = "index not on char boundary"]
+    fn set_gap_in_char() {
+        let mut s = GapString::from("that will be £5 please");
+        s.set_gap(14);
+    }
+
+    #[test]
+    fn set_gap_empty() {
+        let mut s = GapString::new();
+        s.set_gap(0);
+    }
+
+    #[test]
+    #[should_panic = "index not on char boundary"]
+    fn set_gap_out_of_bounds() {
+        let mut s = GapString::new();
+        s.set_gap(1);
     }
 
     #[test]
