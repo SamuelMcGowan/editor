@@ -77,6 +77,43 @@ impl GapString {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    pub fn truncate_front(&mut self, len: usize) {
+        assert!(
+            self.front().is_char_boundary(len),
+            "len not on char boundary"
+        );
+
+        self.inner.truncate_front(len);
+    }
+
+    pub fn truncate_back(&mut self, len: usize) {
+        let len = self.inner.back_len().min(len);
+        let index = self.inner.back_len() - len;
+
+        assert!(
+            self.back().is_char_boundary(index),
+            "len not on char boundary"
+        );
+
+        self.inner.truncate_back(len);
+    }
+
+    pub fn reserve(&mut self, additional: usize) {
+        self.inner.reserve(additional);
+    }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.inner.shrink_to_fit();
+    }
+
+    pub fn shrink_to(&mut self, capacity: usize) {
+        self.inner.shrink_to(capacity);
+    }
+
     fn from_buffer_unchecked(inner: GapBuffer) -> Self {
         Self { inner }
     }
@@ -125,4 +162,24 @@ mod tests {
         assert_eq!(s.pop_back(), Some('a'));
         assert_eq!(s.pop_back(), None);
     }
+
+    #[test]
+    fn truncate_front() {
+        let mut s = GapString::from("that will be £5 please");
+
+        s.truncate_front(23);
+        assert_eq!(s.front(), "that will be £5 please");
+
+        s.truncate_front(15);
+        assert_eq!(s.front(), "that will be £");
+    }
+
+    #[test]
+    #[should_panic = "len not on char boundary"]
+    fn truncate_front_invalid() {
+        let mut s = GapString::from("that will be £5 please");
+        s.truncate_front(14);
+    }
+
+    // TODO: test truncate back
 }
