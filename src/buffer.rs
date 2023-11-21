@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::{ptr, slice};
 
+use crate::iter::{Bytes, BytesMut};
 use crate::raw::RawBuf;
 
 pub struct GapBuffer {
@@ -264,14 +265,18 @@ impl GapBuffer {
     }
 
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = u8> + '_ {
-        self.front().iter().chain(self.back()).copied()
+    pub fn iter(&self) -> Bytes<'_> {
+        Bytes {
+            inner: self.front().iter().chain(self.back()).copied(),
+        }
     }
 
     #[inline]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut u8> + '_ {
+    pub fn iter_mut(&mut self) -> BytesMut<'_> {
         let (front, back) = self.front_and_back_mut();
-        front.iter_mut().chain(back.iter_mut())
+        BytesMut {
+            inner: front.iter_mut().chain(back.iter_mut()),
+        }
     }
 
     #[inline]
@@ -654,7 +659,6 @@ mod tests {
         }
 
         assert_eq!(bytes.next(), None);
-        drop(bytes);
 
         let mut bytes_mut = buf.iter_mut();
         for &b in b"hello world".iter() {
