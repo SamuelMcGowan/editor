@@ -1,6 +1,7 @@
-use std::str::Utf8Error;
+use std::str::{Chars, Utf8Error};
 
 use crate::buffer::GapBuffer;
+use crate::iter::SkipGapIter;
 
 #[derive(Default)]
 pub struct GapString {
@@ -165,6 +166,21 @@ impl GapString {
     }
 
     #[inline]
+    pub fn chars(&self) -> SkipGapIter<Chars> {
+        SkipGapIter::new(self.front().chars(), self.back().chars())
+    }
+
+    #[inline]
+    pub fn char_indices(&self) -> SkipGapIter<crate::iter::CharIndices> {
+        use crate::iter::CharIndices;
+
+        let front = CharIndices::new(self.front(), 0);
+        let back = CharIndices::new(self.back(), self.inner.front_len());
+
+        SkipGapIter::new(front, back)
+    }
+
+    #[inline]
     pub fn into_string(self) -> String {
         let bytes = self.inner.into_vec();
         unsafe { String::from_utf8_unchecked(bytes) }
@@ -255,6 +271,33 @@ mod tests {
         assert_eq!(s.pop_back(), Some('£'));
         assert_eq!(s.pop_back(), Some('a'));
         assert_eq!(s.pop_back(), None);
+    }
+
+    #[test]
+    fn chars() {
+        let mut s = GapString::new();
+        s.push_str("hello");
+        s.push_str_back(" £world");
+
+        for (ch, ch_exp) in s.chars().zip("hello £world".chars()) {
+            assert_eq!(ch, ch_exp);
+        }
+
+        assert_eq!(s.chars().next_back(), Some('d'));
+    }
+
+    #[test]
+    fn char_indices() {
+        let mut s = GapString::new();
+        s.push_str("hello");
+        s.push_str_back(" £world");
+
+        for ((idx, ch), (idx_exp, ch_exp)) in s.char_indices().zip("hello £world".char_indices()) {
+            assert_eq!(idx, idx_exp);
+            assert_eq!(ch, ch_exp);
+        }
+
+        assert_eq!(s.char_indices().next_back(), Some((12, 'd')));
     }
 
     #[test]

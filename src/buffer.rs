@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::{ptr, slice};
 
-use crate::iter::{Bytes, BytesMut};
+use crate::iter::SkipGapIter;
 use crate::raw::RawBuf;
 
 pub struct GapBuffer {
@@ -265,18 +265,14 @@ impl GapBuffer {
     }
 
     #[inline]
-    pub fn iter(&self) -> Bytes<'_> {
-        Bytes {
-            inner: self.front().iter().chain(self.back()).copied(),
-        }
+    pub fn iter(&self) -> SkipGapIter<slice::Iter<u8>> {
+        SkipGapIter::new(self.front().iter(), self.back().iter())
     }
 
     #[inline]
-    pub fn iter_mut(&mut self) -> BytesMut<'_> {
+    pub fn iter_mut(&mut self) -> SkipGapIter<slice::IterMut<'_, u8>> {
         let (front, back) = self.front_and_back_mut();
-        BytesMut {
-            inner: front.iter_mut().chain(back.iter_mut()),
-        }
+        SkipGapIter::new(front.iter_mut(), back.iter_mut())
     }
 
     #[inline]
@@ -654,7 +650,7 @@ mod tests {
         buf.push_slice_back(b" world");
 
         let mut bytes = buf.iter();
-        for &b in b"hello world".iter() {
+        for b in b"hello world".iter() {
             assert_eq!(bytes.next(), Some(b));
         }
 
