@@ -61,6 +61,8 @@ pub enum KeyCode {
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Modifiers: u8 {
+        const EMPTY = 0;
+
         const SHIFT = 0b0001;
         const ALT   = 0b0010;
         const CTRL  = 0b0100;

@@ -1,11 +1,12 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
+use ash_gap_buffer::str::GapString;
 use ash_term::char_buffer::{Cell, CharBuffer};
 use ash_term::draw_char_buffer::draw_diff;
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
 use ash_term::platform::{Events, PlatformTerminal, Terminal, Writer};
-use ash_term::style::{Color, Style};
+use ash_term::style::Style;
 use ash_term::units::Offset;
 
 const FRAME_RATE: Duration = Duration::from_millis(17);
@@ -41,53 +42,96 @@ pub struct Editor {
 
     char_buf_prev: CharBuffer,
     char_buf: CharBuffer,
+
+    buf: GapString,
 }
 
 impl Editor {
     pub fn new() -> Result<Self> {
         Ok(Self {
             terminal: PlatformTerminal::init()?,
+
             char_buf_prev: CharBuffer::new(Offset::ZERO),
             char_buf: CharBuffer::new(Offset::ZERO),
+
+            buf: GapString::new(),
         })
     }
 
     pub fn run(mut self) -> Result<()> {
-        self.draw()?;
+        self.draw_to_terminal()?;
 
         loop {
             let deadline = Instant::now() + FRAME_RATE;
 
             #[allow(clippy::collapsible_match)]
             if let Some(event) = self.terminal.events().read_with_deadline(deadline)? {
-                if let Event::Key(KeyEvent {
-                    key_code: KeyCode::Char('Q'),
-                    modifiers: Modifiers::CTRL,
-                }) = event
-                {
-                    return Ok(());
+                log::debug!("event: {event:?}");
+
+                match event {
+                    Event::Key(KeyEvent {
+                        key_code: KeyCode::Char('Q'),
+                        modifiers: Modifiers::CTRL,
+                    }) => return Ok(()),
+
+                    Event::Key(KeyEvent {
+                        key_code: KeyCode::Char(ch),
+                        modifiers: Modifiers::EMPTY,
+                    }) => {
+                        self.buf.push(ch);
+                    }
+
+                    Event::Key(KeyEvent {
+                        key_code: KeyCode::Return,
+                        modifiers: Modifiers::EMPTY,
+                    }) => {
+                        self.buf.push('\n');
+                    }
+
+                    _ => (),
                 }
             }
 
-            self.draw()?;
+            self.draw_to_buf();
+            self.draw_to_terminal()?;
         }
     }
 
-    fn draw(&mut self) -> Result<()> {
-        let fill_style = Style {
-            bg: Color::Green,
-            ..Default::default()
-        };
-        let fill_cell = Cell::new(' ', fill_style);
+    fn draw_to_buf(&mut self) {
+        let mut col = 0;
+        let mut line = 0;
 
+        for ch in self.buf.chars() {
+            match ch {
+                '\n' => {
+                    col = 0;
+                    line += 1;
+                }
+
+                ch if !ch.is_control() => {
+                    let Some(cell) = self.char_buf.get_mut([col, line]) else {
+                        break;
+                    };
+
+                    *cell = Some(Cell::new(ch, Style::default()));
+                    col += 1;
+                }
+
+                _ => {}
+            }
+        }
+
+        self.char_buf.cursor = Some(Offset::new(col, line));
+    }
+
+    fn draw_to_terminal(&mut self) -> Result<()> {
         let size = self.terminal.size()?;
-
-        self.char_buf.resize_and_clear(size, Some(fill_cell));
 
         draw_diff(&self.char_buf_prev, &self.char_buf, self.terminal.writer());
         self.terminal.writer().flush()?;
 
         self.char_buf_prev.clone_from(&self.char_buf);
+        self.char_buf.resize_and_clear(size, None);
 
         Ok(())
     }

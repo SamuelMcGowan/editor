@@ -21,6 +21,7 @@ impl Default for Cell {
     }
 }
 
+#[derive(Debug)]
 pub struct CharBuffer {
     buf: Vec<Option<Cell>>,
 
