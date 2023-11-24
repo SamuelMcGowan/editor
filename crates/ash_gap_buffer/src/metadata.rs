@@ -2,15 +2,28 @@ use tinyvec::ArrayVec;
 
 const ARRAY_SIZE: usize = 6;
 
-struct Leaf {
-    segments: ArrayVec<[Segment; ARRAY_SIZE]>,
+struct Tree {
+    root: Node,
+}
+
+struct Node {
+    kind: NodeKind,
 
     total_bytes: usize,
     total_chars: usize,
     total_lines: usize,
 }
 
-impl Leaf {
+enum NodeKind {
+    Internal(NodeInternal),
+    Leaf(NodeLeaf),
+}
+
+struct NodeInternal(Box<ArrayVec<[Node; ARRAY_SIZE]>>);
+
+struct NodeLeaf(ArrayVec<[Segment; ARRAY_SIZE]>);
+
+impl NodeLeaf {
     fn byte_offset_to_segment(&self, offset: usize) -> Option<(&Segment, usize)> {
         self.find_after_offset(offset, |seg| seg.bytes)
     }
@@ -26,7 +39,7 @@ impl Leaf {
     ) -> Option<(&Segment, usize)> {
         let mut acc_offset = 0;
 
-        for segment in &self.segments {
+        for segment in &self.0 {
             let size = get_size(segment) as usize;
             acc_offset += size;
 
