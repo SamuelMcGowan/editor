@@ -6,20 +6,28 @@ struct Tree {
     root: Node,
 }
 
-struct Node {
-    kind: NodeKind,
-
+#[derive(Debug, Clone, Copy)]
+struct NodeInfo {
     total_bytes: usize,
     total_chars: usize,
     total_lines: usize,
 }
 
-enum NodeKind {
-    Internal(NodeInternal),
-    Leaf(NodeLeaf),
+enum Node {
+    Internal(Box<NodeInternal>, NodeInfo),
+    Leaf(Box<NodeLeaf>, NodeInfo),
 }
 
-struct NodeInternal(Box<ArrayVec<[Node; ARRAY_SIZE]>>);
+impl Node {
+    fn node_info(&self) -> NodeInfo {
+        match self {
+            Self::Internal(_, info) => *info,
+            Self::Leaf(_, info) => *info,
+        }
+    }
+}
+
+struct NodeInternal(ArrayVec<[Node; ARRAY_SIZE]>);
 
 struct NodeLeaf(ArrayVec<[Segment; ARRAY_SIZE]>);
 
