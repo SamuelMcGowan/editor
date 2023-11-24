@@ -1,69 +1,81 @@
-use tinyvec::ArrayVec;
-
-const ARRAY_SIZE: usize = 6;
-
-struct Tree {
-    root: Node,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct NodeInfo {
-    total_bytes: usize,
-    total_chars: usize,
-    total_lines: usize,
-}
-
-enum Node {
-    Internal(Box<NodeInternal>, NodeInfo),
-    Leaf(Box<NodeLeaf>, NodeInfo),
+pub enum Node {
+    Internal(NodeInternal),
+    Leaf(NodeLeaf),
 }
 
 impl Node {
-    fn node_info(&self) -> NodeInfo {
+    pub fn text_info(&self) -> TextInfo {
         match self {
-            Self::Internal(_, info) => *info,
-            Self::Leaf(_, info) => *info,
+            Node::Internal(internal) => internal.text_info,
+            Node::Leaf(leaf) => leaf.text_info(),
         }
     }
-}
 
-struct NodeInternal(ArrayVec<[Node; ARRAY_SIZE]>);
+    fn before_byte(&self, byte_offset: usize) -> Option<TextInfo> {
+        match self {
+            Node::Internal(internal) => {
+                if let Some(text_info) = internal.left.before_byte(byte_offset) {
+                    return Some(text_info);
+                }
 
-struct NodeLeaf(ArrayVec<[Segment; ARRAY_SIZE]>);
+                let left_info = internal.left.text_info();
 
-impl NodeLeaf {
-    fn byte_offset_to_segment(&self, offset: usize) -> Option<(&Segment, usize)> {
-        self.find_after_offset(offset, |seg| seg.bytes)
-    }
+                if let Some(text_info) = internal.right.before_byte(left_info.bytes + byte_offset) {
+                    return Some(text_info);
+                }
 
-    fn char_offset_to_segment(&self, char_offset: usize) -> Option<(&Segment, usize)> {
-        self.find_after_offset(char_offset, |seg| seg.chars)
-    }
+                None
+            }
 
-    fn find_after_offset(
-        &self,
-        offset: usize,
-        get_size: impl Fn(&Segment) -> u8,
-    ) -> Option<(&Segment, usize)> {
-        let mut acc_offset = 0;
-
-        for segment in &self.0 {
-            let size = get_size(segment) as usize;
-            acc_offset += size;
-
-            if offset < acc_offset {
-                let remainder = size - (acc_offset - offset);
-                return Some((segment, remainder));
+            Node::Leaf(leaf) => {
+                if byte_offset < leaf.bytes as usize {
+                    Some(leaf.text_info())
+                } else {
+                    None
+                }
             }
         }
-
-        None
     }
 }
 
-#[derive(Default)]
-struct Segment {
+pub struct NodeInternal {
+    left: Box<Node>,
+    right: Box<Node>,
+    text_info: TextInfo,
+}
+
+pub struct NodeLeaf {
     bytes: u8,
     chars: u8,
-    newline_terminated: bool,
+    has_line_break: bool,
+}
+
+impl NodeLeaf {
+    fn text_info(&self) -> TextInfo {
+        TextInfo {
+            bytes: self.bytes as usize,
+            chars: self.chars as usize,
+            lines: if self.has_line_break { 1 } else { 0 },
+        }
+    }
+
+    fn byte_to_char(&self, byte_offset: u8) -> Option<u8> {
+        if byte_offset > self.bytes {
+            None
+        } else {
+            let char_width = self.bytes / self.chars;
+            Some(byte_offset * char_width)
+        }
+    }
+
+    fn char_width(&self) -> u8 {
+        self.bytes / self.chars
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TextInfo {
+    bytes: usize,
+    chars: usize,
+    lines: usize,
 }
