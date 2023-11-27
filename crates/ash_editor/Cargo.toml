@@ -7,10 +7,13 @@ edition = "2021"
 anyhow = "1.0.75"
 # ash_gap_buffer = { path = "../ash_gap_buffer" }
 ash_term = { path = "../ash_term" }
+backtrace = "0.3.69"
 chrono = "0.4.31"
+color-backtrace = "0.6.1"
 crop = { version = "0.4.0", features = ["graphemes"] }
 fern = "0.6.2"
 log = { workspace = true }
+unicode-width = "0.1.11"
 
 [lints]
 workspace = true
