@@ -28,9 +28,9 @@ name = "ash_editor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "ash_gap_buffer",
  "ash_term",
  "chrono",
+ "crop",
  "fern",
  "log",
 ]
@@ -101,6 +101,16 @@ name = "core-foundation-sys"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e496a50fda8aacccc86d7529e2c1e0892dbd0f898a6b5645b5561b89c3210efa"
+
+[[package]]
+name = "crop"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57e7b88784eea5a7895d70cde2535b36030ae387adde16a1d5c962c5ec5f273f"
+dependencies = [
+ "str_indices",
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "crossbeam-channel"
@@ -208,6 +218,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "str_indices"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9557cb6521e8d009c51a8666f09356f4b817ba9ba0981a305bd86aee47bd35c"
+
+[[package]]
 name = "syn"
 version = "2.0.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -223,6 +239,12 @@ name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dd624098567895118886609431a7c3b8f516e41d30e0643f03d94592a147e36"
 
 [[package]]
 name = "wasm-bindgen"

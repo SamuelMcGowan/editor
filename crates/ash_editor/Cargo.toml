@@ -5,9 +5,10 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.75"
-ash_gap_buffer = { path = "../ash_gap_buffer" }
+# ash_gap_buffer = { path = "../ash_gap_buffer" }
 ash_term = { path = "../ash_term" }
 chrono = "0.4.31"
+crop = { version = "0.4.0", features = ["graphemes"] }
 fern = "0.6.2"
 log = { workspace = true }
 

@@ -1,13 +1,13 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use ash_gap_buffer::str::GapString;
 use ash_term::char_buffer::{Cell, CharBuffer};
 use ash_term::draw_char_buffer::draw_diff;
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
 use ash_term::platform::{Events, PlatformTerminal, Terminal, Writer};
 use ash_term::style::Style;
 use ash_term::units::Offset;
+use crop::Rope;
 
 const FRAME_RATE: Duration = Duration::from_millis(17);
 
@@ -43,7 +43,7 @@ pub struct Editor {
     char_buf_prev: CharBuffer,
     char_buf: CharBuffer,
 
-    buf: GapString,
+    rope: Rope,
 }
 
 impl Editor {
@@ -54,7 +54,7 @@ impl Editor {
             char_buf_prev: CharBuffer::new(Offset::ZERO),
             char_buf: CharBuffer::new(Offset::ZERO),
 
-            buf: GapString::new(),
+            rope: Rope::new(),
         })
     }
 
@@ -77,16 +77,14 @@ impl Editor {
                     Event::Key(KeyEvent {
                         key_code: KeyCode::Char(ch),
                         modifiers: Modifiers::EMPTY,
-                    }) => {
-                        self.buf.push(ch);
-                    }
+                    }) => self
+                        .rope
+                        .insert(self.cursor_offset(), ch.encode_utf8(&mut [0; 4])),
 
                     Event::Key(KeyEvent {
                         key_code: KeyCode::Return,
                         modifiers: Modifiers::EMPTY,
-                    }) => {
-                        self.buf.push('\n');
-                    }
+                    }) => self.rope.insert(self.cursor_offset(), "\n"),
 
                     _ => (),
                 }
@@ -97,11 +95,15 @@ impl Editor {
         }
     }
 
+    fn cursor_offset(&self) -> usize {
+        self.rope.byte_len()
+    }
+
     fn draw_to_buf(&mut self) {
         let mut col = 0;
         let mut line = 0;
 
-        for ch in self.buf.chars() {
+        for ch in self.rope.chars() {
             match ch {
                 '\n' => {
                     col = 0;
