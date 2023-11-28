@@ -65,6 +65,7 @@ dependencies = [
  "crossbeam-channel",
  "libc",
  "log",
+ "num-traits",
 ]
 
 [[package]]

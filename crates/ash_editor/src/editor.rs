@@ -4,7 +4,7 @@ use anyhow::Result;
 use ash_term::char_buffer::{Cell, CharBuffer};
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
 use ash_term::style::{Style, Weight};
-use ash_term::units::Offset;
+use ash_term::units::Vec2;
 use crop::{Rope, RopeSlice};
 use unicode_width::UnicodeWidthStr;
 
@@ -252,7 +252,7 @@ impl Editor {
             return;
         }
 
-        buffer.cursor = Some(Offset::new(
+        buffer.cursor = Some(Vec2::new(
             (GUTTER.len() + self.cursor_x) as u16,
             self.cursor_y as u16,
         ));

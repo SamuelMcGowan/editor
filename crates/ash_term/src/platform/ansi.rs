@@ -3,7 +3,7 @@ use std::io::{self, Write};
 
 use super::Writer;
 use crate::style::{Color, Weight};
-use crate::units::Offset;
+use crate::units::Vec2;
 
 const CSI: &str = "\x1b[";
 
@@ -45,7 +45,7 @@ impl<W: Write> Writer for AnsiWriter<W> {
     }
 
     #[inline]
-    fn set_cursor_pos(&mut self, pos: impl Into<Offset>) {
+    fn set_cursor_pos(&mut self, pos: impl Into<Vec2<u16>>) {
         let pos = pos.into();
 
         let row = pos.y.saturating_add(1);

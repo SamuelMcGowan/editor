@@ -1,112 +1,160 @@
 use std::ops::{Add, Div, Mul, Sub};
 
-/// A 16-bit 2D offset.
+use num_traits::{
+    CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, SaturatingAdd, SaturatingMul, SaturatingSub,
+    Zero,
+};
+
+/// A 2d vector.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Offset {
-    pub x: u16,
-    pub y: u16,
+pub struct Vec2<T> {
+    pub x: T,
+    pub y: T,
 }
 
-impl Offset {
-    pub const ZERO: Self = Self::splat(0);
-
+impl<T: Copy> Vec2<T> {
     #[inline]
-    pub const fn new(x: u16, y: u16) -> Self {
+    pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 
     #[inline]
-    pub const fn splat(n: u16) -> Self {
+    pub fn zero() -> Self
+    where
+        T: Zero,
+    {
+        Self::splat(T::zero())
+    }
+
+    #[inline]
+    pub const fn splat(n: T) -> Self {
         Self::new(n, n)
     }
 
     #[inline]
     #[must_use]
-    pub fn min(&self, rhs: Self) -> Self {
-        self.join(rhs, u16::min)
+    pub fn min(&self, rhs: Self) -> Self
+    where
+        T: Ord,
+    {
+        self.join(rhs, T::min)
     }
 
     #[inline]
     #[must_use]
-    pub fn max(&self, rhs: Self) -> Self {
-        self.join(rhs, u16::max)
+    pub fn max(&self, rhs: Self) -> Self
+    where
+        T: Ord,
+    {
+        self.join(rhs, T::max)
     }
 
     #[inline]
     #[must_use]
-    pub fn saturating_add(&self, rhs: Self) -> Self {
-        self.join(rhs, u16::saturating_add)
+    pub fn saturating_add(&self, rhs: Self) -> Self
+    where
+        T: SaturatingAdd,
+    {
+        self.join(rhs, copying(T::saturating_add))
     }
 
     #[inline]
     #[must_use]
-    pub fn saturating_sub(&self, rhs: Self) -> Self {
-        self.join(rhs, u16::saturating_sub)
+    pub fn saturating_sub(&self, rhs: Self) -> Self
+    where
+        T: SaturatingSub,
+    {
+        self.join(rhs, copying(T::saturating_sub))
     }
 
     #[inline]
     #[must_use]
-    pub fn saturating_mul(&self, rhs: Self) -> Self {
-        self.join(rhs, u16::saturating_mul)
+    pub fn saturating_mul(&self, rhs: Self) -> Self
+    where
+        T: SaturatingMul,
+    {
+        self.join(rhs, copying(T::saturating_mul))
     }
 
     #[inline]
     #[must_use]
-    pub fn saturating_div(&self, rhs: Self) -> Self {
-        self.join(rhs, u16::saturating_div)
+    pub fn checked_add(self, rhs: Self) -> Option<Self>
+    where
+        T: CheckedAdd,
+    {
+        self.try_join(rhs, copying(T::checked_add))
     }
 
     #[inline]
     #[must_use]
-    pub fn checked_add(self, rhs: Self) -> Option<Self> {
-        self.try_join(rhs, u16::checked_add)
+    pub fn checked_sub(self, rhs: Self) -> Option<Self>
+    where
+        T: CheckedSub,
+    {
+        self.try_join(rhs, copying(T::checked_sub))
     }
 
     #[inline]
     #[must_use]
-    pub fn checked_sub(self, rhs: Self) -> Option<Self> {
-        self.try_join(rhs, u16::checked_sub)
+    pub fn checked_mul(self, rhs: Self) -> Option<Self>
+    where
+        T: CheckedMul,
+    {
+        self.try_join(rhs, copying(T::checked_mul))
     }
 
     #[inline]
     #[must_use]
-    pub fn checked_mul(self, rhs: Self) -> Option<Self> {
-        self.try_join(rhs, u16::checked_mul)
+    pub fn checked_div(self, rhs: Self) -> Option<Self>
+    where
+        T: CheckedDiv,
+    {
+        self.try_join(rhs, copying(T::checked_div))
     }
 
     #[inline]
-    #[must_use]
-    pub fn checked_div(self, rhs: Self) -> Option<Self> {
-        self.try_join(rhs, u16::checked_div)
+    pub fn area<U>(&self) -> U::Output
+    where
+        T: Into<U>,
+        U: Mul,
+    {
+        self.x.into() * self.y.into()
     }
 
     #[inline]
-    pub fn area(&self) -> usize {
-        self.x as usize * self.y as usize
+    pub fn lt(&self, rhs: Self) -> OffsetComparison
+    where
+        T: Ord,
+    {
+        self.cmp(rhs, T::lt)
     }
 
     #[inline]
-    pub fn lt(&self, rhs: Self) -> OffsetComparison {
-        self.cmp(rhs, u16::lt)
+    pub fn gt(&self, rhs: Self) -> OffsetComparison
+    where
+        T: Ord,
+    {
+        self.cmp(rhs, T::gt)
     }
 
     #[inline]
-    pub fn gt(&self, rhs: Self) -> OffsetComparison {
-        self.cmp(rhs, u16::gt)
+    pub fn le(&self, rhs: Self) -> OffsetComparison
+    where
+        T: Ord,
+    {
+        self.cmp(rhs, T::le)
     }
 
     #[inline]
-    pub fn le(&self, rhs: Self) -> OffsetComparison {
-        self.cmp(rhs, u16::le)
+    pub fn ge(&self, rhs: Self) -> OffsetComparison
+    where
+        T: Ord,
+    {
+        self.cmp(rhs, T::ge)
     }
 
     #[inline]
-    pub fn ge(&self, rhs: Self) -> OffsetComparison {
-        self.cmp(rhs, u16::ge)
-    }
-
-    #[inline]
-    fn try_join(self, rhs: Self, f: impl Fn(u16, u16) -> Option<u16>) -> Option<Self> {
+    fn try_join(self, rhs: Self, f: impl Fn(T, T) -> Option<T>) -> Option<Self> {
         Some(Self {
             x: f(self.x, rhs.x)?,
             y: f(self.y, rhs.y)?,
@@ -114,23 +162,23 @@ impl Offset {
     }
 
     #[inline]
-    fn join(self, rhs: Self, f: impl Fn(u16, u16) -> u16) -> Self {
-        Self {
+    fn join<U>(self, rhs: Self, f: impl Fn(T, T) -> U) -> Vec2<U> {
+        Vec2 {
             x: f(self.x, rhs.x),
-            y: f(self.x, rhs.x),
+            y: f(self.y, rhs.y),
         }
     }
 
     #[inline]
-    fn join_u16(self, rhs: u16, f: impl Fn(u16, u16) -> u16) -> Self {
-        Self {
+    fn join_t<U>(self, rhs: T, f: impl Fn(T, T) -> U) -> Vec2<U> {
+        Vec2 {
             x: f(self.x, rhs),
             y: f(self.y, rhs),
         }
     }
 
     #[inline]
-    fn cmp(self, rhs: Self, f: impl Fn(&u16, &u16) -> bool) -> OffsetComparison {
+    fn cmp(self, rhs: Self, f: impl Fn(&T, &T) -> bool) -> OffsetComparison {
         OffsetComparison {
             x: f(&self.x, &rhs.x),
             y: f(&self.y, &rhs.y),
@@ -140,34 +188,25 @@ impl Offset {
 
 macro_rules! impl_op_offset {
     ($trait:ident, $f:ident) => {
-        impl $trait<Offset> for Offset {
-            type Output = Offset;
+        impl<T: $trait + Copy> $trait<Vec2<T>> for Vec2<T> {
+            type Output = Vec2<T::Output>;
 
             #[inline]
-            fn $f(self, rhs: Offset) -> Self::Output {
-                self.join(rhs, u16::$f)
+            fn $f(self, rhs: Vec2<T>) -> Self::Output {
+                self.join(rhs, T::$f)
             }
         }
     };
 }
 
-macro_rules! impl_op_u16 {
+macro_rules! impl_op_T {
     ($trait:ident, $f:ident) => {
-        impl $trait<u16> for Offset {
-            type Output = Offset;
+        impl<T: $trait + Copy> $trait<T> for Vec2<T> {
+            type Output = Vec2<T::Output>;
 
             #[inline]
-            fn $f(self, rhs: u16) -> Self::Output {
-                self.join_u16(rhs, u16::$f)
-            }
-        }
-
-        impl $trait<Offset> for u16 {
-            type Output = Offset;
-
-            #[inline]
-            fn $f(self, rhs: Offset) -> Self::Output {
-                rhs.join_u16(self, u16::$f)
+            fn $f(self, rhs: T) -> Self::Output {
+                self.join_t(rhs, T::$f)
             }
         }
     };
@@ -176,14 +215,14 @@ macro_rules! impl_op_u16 {
 impl_op_offset! { Add, add }
 impl_op_offset! { Sub, sub }
 
-impl_op_u16! { Add, add }
-impl_op_u16! { Sub, sub }
-impl_op_u16! { Mul, mul }
-impl_op_u16! { Div, div }
+impl_op_T! { Add, add }
+impl_op_T! { Sub, sub }
+impl_op_T! { Mul, mul }
+impl_op_T! { Div, div }
 
-impl From<[u16; 2]> for Offset {
+impl<T: Copy> From<[T; 2]> for Vec2<T> {
     #[inline]
-    fn from(value: [u16; 2]) -> Self {
+    fn from(value: [T; 2]) -> Self {
         Self {
             x: value[0],
             y: value[1],
@@ -191,9 +230,9 @@ impl From<[u16; 2]> for Offset {
     }
 }
 
-impl From<Offset> for [u16; 2] {
+impl<T> From<Vec2<T>> for [T; 2] {
     #[inline]
-    fn from(value: Offset) -> Self {
+    fn from(value: Vec2<T>) -> Self {
         [value.x, value.y]
     }
 }
@@ -214,4 +253,8 @@ impl OffsetComparison {
     pub fn either(&self) -> bool {
         self.x || self.y
     }
+}
+
+fn copying<T: Copy, U>(f: impl Fn(&T, &T) -> U) -> impl Fn(T, T) -> U {
+    move |lhs, rhs| f(&lhs, &rhs)
 }

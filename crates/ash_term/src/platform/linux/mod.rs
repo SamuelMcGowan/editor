@@ -5,7 +5,7 @@ use super::ansi::AnsiWriter;
 use super::ansi_event::AnsiEvents;
 use super::{Terminal, Writer};
 use crate::style::Style;
-use crate::units::Offset;
+use crate::units::Vec2;
 
 mod raw_term;
 
@@ -31,7 +31,7 @@ impl Terminal for LinuxTerminal {
         Ok(term)
     }
 
-    fn size(&self) -> io::Result<Offset> {
+    fn size(&self) -> io::Result<Vec2<u16>> {
         self.ansi_raw_term.inner().size()
     }
 

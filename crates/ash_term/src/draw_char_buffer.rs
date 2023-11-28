@@ -1,7 +1,7 @@
 use crate::char_buffer::CharBuffer;
 use crate::platform::Writer;
 use crate::style::Style;
-use crate::units::Offset;
+use crate::units::Vec2;
 
 pub fn draw_diff(old: &CharBuffer, new: &CharBuffer, w: &mut impl Writer) {
     if old.size() != new.size() {
@@ -12,7 +12,7 @@ pub fn draw_diff(old: &CharBuffer, new: &CharBuffer, w: &mut impl Writer) {
     w.set_cursor_home();
     w.set_cursor_vis(false);
 
-    let mut cursor_pos = Offset::ZERO;
+    let mut cursor_pos = Vec2::zero();
     let mut style = Style::default();
 
     w.write_style(style);
@@ -31,7 +31,7 @@ pub fn draw_diff(old: &CharBuffer, new: &CharBuffer, w: &mut impl Writer) {
             draw_style_diff(style, cell.style, w);
             style = cell.style;
 
-            let cell_pos = Offset::new(x, y);
+            let cell_pos = Vec2::new(x, y);
             if cell_pos != cursor_pos {
                 w.set_cursor_pos(cell_pos);
                 cursor_pos = cell_pos;
