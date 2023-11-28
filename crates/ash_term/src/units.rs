@@ -197,14 +197,14 @@ macro_rules! conversions {
             impl From<$src> for $dest {
                 #[inline]
                 fn from(value: $src) -> Self {
-                    Self::new(value.x.into(), value.y.into())
+                    Self::new(value.x as _, value.y as _)
                 }
             }
         )*
     };
 }
 
-conversions! { OffsetU16 => OffsetUsize }
+conversions! { OffsetU16 => OffsetUsize, OffsetUsize => OffsetU16 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Comparison {
