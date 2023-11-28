@@ -75,9 +75,9 @@ impl App {
                 if let ControlFlow::Break(res) = self.editor.handle_event(event) {
                     return res;
                 }
-
-                self.draw()?;
             }
+
+            self.draw()?;
         }
     }
 

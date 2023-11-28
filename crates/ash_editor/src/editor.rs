@@ -3,12 +3,14 @@ use std::ops::ControlFlow;
 use anyhow::Result;
 use ash_term::char_buffer::{Cell, CharBuffer};
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
-use ash_term::style::Style;
+use ash_term::style::{Style, Weight};
 use ash_term::units::Offset;
 use crop::{Rope, RopeSlice};
 use unicode_width::UnicodeWidthStr;
 
 use crate::utils::{LineSegment, LineSegments};
+
+const GUTTER: &str = "# ";
 
 #[derive(Default)]
 pub struct Editor {
@@ -206,35 +208,41 @@ impl Editor {
         }
     }
 
-    fn cursor_view_offset(&self) -> Offset {
-        Offset::new(self.cursor_x as u16, self.cursor_y as u16)
-    }
-
     pub fn draw(&self, buffer: &mut CharBuffer) {
-        let mut col = 0;
-        let mut line = 0;
+        self.draw_gutter(buffer);
 
-        for ch in self.rope.chars() {
-            match ch {
-                '\n' => {
-                    col = 0;
-                    line += 1;
-                }
+        let size = buffer.size();
+        let width = (size.x as usize).saturating_sub(GUTTER.len());
 
-                ch if !ch.is_control() => {
-                    let Some(cell) = buffer.get_mut([col, line]) else {
-                        break;
-                    };
+        for (y, mut line) in self.rope.lines().take(size.y as usize).enumerate() {
+            if line.byte_len() > width {
+                line = line.byte_slice(..width);
+            }
 
-                    *cell = Some(Cell::new(ch, Style::default()));
-                    col += 1;
-                }
-
-                _ => {}
+            for (ch, x) in line.chars().zip(GUTTER.len()..) {
+                buffer[[x as u16, y as u16]] = Some(Cell::new(ch, Style::default()));
             }
         }
 
-        buffer.cursor = Some(self.cursor_view_offset());
+        if self.cursor_x < width && self.cursor_y < size.y as usize {
+            buffer.cursor = Some(Offset::new(
+                (GUTTER.len() + self.cursor_x) as u16,
+                self.cursor_y as u16,
+            ));
+        }
+    }
+
+    fn draw_gutter(&self, buffer: &mut CharBuffer) {
+        let gutter_style = Style {
+            weight: Weight::Dim,
+            ..Default::default()
+        };
+
+        for y in 0..buffer.size().y {
+            for (x, ch) in GUTTER.chars().enumerate() {
+                buffer[[x as u16, y]] = Some(Cell::new(ch, gutter_style));
+            }
+        }
     }
 }
 
