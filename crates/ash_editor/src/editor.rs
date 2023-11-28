@@ -15,6 +15,7 @@ pub struct Editor {
     rope: Rope,
 
     cursor_x: usize,
+    cursor_x_ghost: usize,
     cursor_y: usize,
 }
 
@@ -27,34 +28,22 @@ impl Editor {
             }) => return ControlFlow::Break(Ok(())),
 
             Event::Key(KeyEvent {
-                key_code: KeyCode::Char(ch),
+                key_code,
                 modifiers: Modifiers::EMPTY,
-            }) => self.insert_char(ch),
+            }) => match key_code {
+                KeyCode::Char(ch) => self.insert_char(ch),
+                KeyCode::Return => self.insert_char('\n'),
 
-            Event::Key(KeyEvent {
-                key_code: KeyCode::Return,
-                modifiers: Modifiers::EMPTY,
-            }) => self.insert_char('\n'),
+                KeyCode::Left => self.move_left(),
+                KeyCode::Right => self.move_right(),
+                KeyCode::Up => self.move_up(),
+                KeyCode::Down => self.move_down(),
 
-            Event::Key(KeyEvent {
-                key_code: KeyCode::Left,
-                modifiers: Modifiers::EMPTY,
-            }) => self.move_left(),
+                KeyCode::Home => self.move_home(),
+                KeyCode::End => self.move_end(),
 
-            Event::Key(KeyEvent {
-                key_code: KeyCode::Right,
-                modifiers: Modifiers::EMPTY,
-            }) => self.move_right(),
-
-            Event::Key(KeyEvent {
-                key_code: KeyCode::Up,
-                modifiers: Modifiers::EMPTY,
-            }) => self.move_up(),
-
-            Event::Key(KeyEvent {
-                key_code: KeyCode::Down,
-                modifiers: Modifiers::EMPTY,
-            }) => self.move_down(),
+                _ => {}
+            },
 
             Event::Paste(s) => self.insert_str(&s),
 
@@ -76,6 +65,8 @@ impl Editor {
         } else {
             return;
         };
+
+        self.cursor_x_ghost = self.cursor_x;
     }
 
     fn insert_str(&mut self, s: &str) {
@@ -103,6 +94,8 @@ impl Editor {
         if let Some(LineSegment::Line(last_line)) = LineSegments::new(s).next_back() {
             self.cursor_x += last_line.width();
         }
+
+        self.cursor_x_ghost = self.cursor_x;
     }
 
     fn move_left(&mut self) {
@@ -112,6 +105,7 @@ impl Editor {
             self.cursor_y -= 1;
             self.cursor_x = self.current_line().width();
         }
+        self.cursor_x_ghost = self.cursor_x;
     }
 
     fn move_right(&mut self) {
@@ -121,24 +115,35 @@ impl Editor {
             self.cursor_y += 1;
             self.cursor_x = 0;
         }
+        self.cursor_x_ghost = self.cursor_x;
     }
 
     fn move_up(&mut self) {
         if self.cursor_y == 0 {
-            self.cursor_x = 0;
+            self.move_home()
         } else {
             self.cursor_y -= 1;
-            self.cursor_x = self.cursor_x.min(self.current_line().width());
+            self.cursor_x = self.cursor_x_ghost.min(self.current_line().width());
         }
     }
 
     fn move_down(&mut self) {
         if self.cursor_y + 1 < self.rope.line_len() {
             self.cursor_y += 1;
-            self.cursor_x = self.cursor_x.min(self.current_line().width());
+            self.cursor_x = self.cursor_x_ghost.min(self.current_line().width());
         } else {
-            self.cursor_x = self.current_line().width();
+            self.move_end();
         }
+    }
+
+    fn move_home(&mut self) {
+        self.cursor_x = 0;
+        self.cursor_x_ghost = 0;
+    }
+
+    fn move_end(&mut self) {
+        self.cursor_x = self.current_line().width();
+        self.cursor_x_ghost = self.cursor_x;
     }
 
     fn current_line(&self) -> RopeSlice {
