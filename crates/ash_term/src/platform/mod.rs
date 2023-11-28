@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use crate::event::Event;
 use crate::style::{Color, Style, Weight};
-use crate::units::Vec2;
+use crate::units::OffsetU16;
 
 mod ansi;
 mod ansi_event;
@@ -18,7 +18,7 @@ pub trait Terminal: Sized {
     type Events: Events;
 
     fn init() -> io::Result<Self>;
-    fn size(&self) -> io::Result<Vec2<u16>>;
+    fn size(&self) -> io::Result<OffsetU16>;
 
     fn writer(&mut self) -> &mut Self::Writer;
     fn events(&mut self) -> &mut Self::Events;
@@ -32,7 +32,7 @@ pub trait Writer {
     fn set_cursor_home(&mut self);
     fn next_line(&mut self);
 
-    fn set_cursor_pos(&mut self, poss: impl Into<Vec2<u16>>);
+    fn set_cursor_pos(&mut self, poss: impl Into<OffsetU16>);
     fn set_cursor_vis(&mut self, vis: bool);
 
     fn set_fg_color(&mut self, c: Color);

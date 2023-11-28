@@ -4,7 +4,7 @@ use anyhow::Result;
 use ash_term::char_buffer::{Cell, CharBuffer};
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
 use ash_term::style::{Style, Weight};
-use ash_term::units::Vec2;
+use ash_term::units::{OffsetU16, OffsetUsize};
 use crop::{Rope, RopeSlice};
 use unicode_width::UnicodeWidthStr;
 
@@ -220,7 +220,7 @@ impl Editor {
     }
 
     fn draw_text(&self, buffer: &mut CharBuffer) {
-        let mut size = buffer.size().convert::<usize>();
+        let mut size = OffsetUsize::from(buffer.size());
         size.x = size.x.saturating_sub(GUTTER.len());
 
         for (y, mut line) in self.rope.lines().take(size.y).enumerate() {
@@ -243,14 +243,14 @@ impl Editor {
     }
 
     fn draw_cursor(&self, buffer: &mut CharBuffer) {
-        let mut size = buffer.size().convert::<usize>();
+        let mut size = OffsetUsize::from(buffer.size());
         size.x = size.x.saturating_sub(GUTTER.len());
 
         if self.cursor_x >= size.x || self.cursor_y >= size.y {
             return;
         }
 
-        buffer.cursor = Some(Vec2::new(
+        buffer.cursor = Some(OffsetU16::new(
             (GUTTER.len() + self.cursor_x) as u16,
             self.cursor_y as u16,
         ));

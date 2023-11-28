@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use ash_term::char_buffer::CharBuffer;
 use ash_term::draw_char_buffer::draw_diff;
 use ash_term::platform::{Events, PlatformTerminal, Terminal, Writer};
-use ash_term::units::Vec2;
+use ash_term::units::OffsetU16;
 use editor::Editor;
 
 const FRAME_RATE: Duration = Duration::from_millis(17);
@@ -56,8 +56,8 @@ impl App {
         Ok(Self {
             terminal: PlatformTerminal::init()?,
 
-            char_buf_prev: CharBuffer::new(Vec2::zero()),
-            char_buf: CharBuffer::new(Vec2::zero()),
+            char_buf_prev: CharBuffer::new(OffsetU16::ZERO),
+            char_buf: CharBuffer::new(OffsetU16::ZERO),
 
             editor: Editor::default(),
         })
