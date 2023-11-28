@@ -29,3 +29,13 @@ pub struct Style {
     pub weight: Weight,
     pub underline: bool,
 }
+
+impl Style {
+    pub const EMPTY: Self = Style {
+        fg: Color::Default,
+        bg: Color::Default,
+
+        weight: Weight::Normal,
+        underline: false,
+    };
+}

@@ -12,6 +12,11 @@ use crate::utils::{LineSegment, LineSegments};
 
 const GUTTER: &str = "# ";
 
+const GUTTER_STYLE: Style = Style {
+    weight: Weight::Dim,
+    ..Style::EMPTY
+};
+
 #[derive(Default)]
 pub struct Editor {
     rope: Rope,
@@ -210,7 +215,11 @@ impl Editor {
 
     pub fn draw(&self, buffer: &mut CharBuffer) {
         self.draw_gutter(buffer);
+        self.draw_text(buffer);
+        self.draw_cursor(buffer);
+    }
 
+    fn draw_text(&self, buffer: &mut CharBuffer) {
         let size = buffer.size();
         let width = (size.x as usize).saturating_sub(GUTTER.len());
 
@@ -223,26 +232,30 @@ impl Editor {
                 buffer[[x as u16, y as u16]] = Some(Cell::new(ch, Style::default()));
             }
         }
-
-        if self.cursor_x < width && self.cursor_y < size.y as usize {
-            buffer.cursor = Some(Offset::new(
-                (GUTTER.len() + self.cursor_x) as u16,
-                self.cursor_y as u16,
-            ));
-        }
     }
 
     fn draw_gutter(&self, buffer: &mut CharBuffer) {
-        let gutter_style = Style {
-            weight: Weight::Dim,
-            ..Default::default()
-        };
-
         for y in 0..buffer.size().y {
             for (x, ch) in GUTTER.chars().enumerate() {
-                buffer[[x as u16, y]] = Some(Cell::new(ch, gutter_style));
+                buffer[[x as u16, y]] = Some(Cell::new(ch, GUTTER_STYLE));
             }
         }
+    }
+
+    fn draw_cursor(&self, buffer: &mut CharBuffer) {
+        let size = buffer.size();
+
+        let width = (size.x as usize).saturating_sub(GUTTER.len());
+        let height = size.y as usize;
+
+        if self.cursor_x >= width || self.cursor_y >= height {
+            return;
+        }
+
+        buffer.cursor = Some(Offset::new(
+            (GUTTER.len() + self.cursor_x) as u16,
+            self.cursor_y as u16,
+        ));
     }
 }
 
