@@ -220,12 +220,12 @@ impl Editor {
     }
 
     fn draw_text(&self, buffer: &mut CharBuffer) {
-        let size = buffer.size();
-        let width = (size.x as usize).saturating_sub(GUTTER.len());
+        let mut size = buffer.size().convert::<usize>();
+        size.x = size.x.saturating_sub(GUTTER.len());
 
-        for (y, mut line) in self.rope.lines().take(size.y as usize).enumerate() {
-            if line.byte_len() > width {
-                line = line.byte_slice(..width);
+        for (y, mut line) in self.rope.lines().take(size.y).enumerate() {
+            if line.byte_len() > size.x {
+                line = line.byte_slice(..size.x);
             }
 
             for (ch, x) in line.chars().zip(GUTTER.len()..) {
@@ -243,12 +243,10 @@ impl Editor {
     }
 
     fn draw_cursor(&self, buffer: &mut CharBuffer) {
-        let size = buffer.size();
+        let mut size = buffer.size().convert::<usize>();
+        size.x = size.x.saturating_sub(GUTTER.len());
 
-        let width = (size.x as usize).saturating_sub(GUTTER.len());
-        let height = size.y as usize;
-
-        if self.cursor_x >= width || self.cursor_y >= height {
+        if self.cursor_x >= size.x || self.cursor_y >= size.y {
             return;
         }
 

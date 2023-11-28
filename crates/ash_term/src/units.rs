@@ -19,6 +19,11 @@ impl<T: Copy> Vec2<T> {
     }
 
     #[inline]
+    pub const fn splat(n: T) -> Self {
+        Self::new(n, n)
+    }
+
+    #[inline]
     pub fn zero() -> Self
     where
         T: Zero,
@@ -27,8 +32,14 @@ impl<T: Copy> Vec2<T> {
     }
 
     #[inline]
-    pub const fn splat(n: T) -> Self {
-        Self::new(n, n)
+    pub fn convert<U>(self) -> Vec2<U>
+    where
+        U: From<T>,
+    {
+        Vec2 {
+            x: self.x.into(),
+            y: self.y.into(),
+        }
     }
 
     #[inline]
@@ -255,6 +266,7 @@ impl OffsetComparison {
     }
 }
 
+#[inline]
 fn copying<T: Copy, U>(f: impl Fn(&T, &T) -> U) -> impl Fn(T, T) -> U {
     move |lhs, rhs| f(&lhs, &rhs)
 }
