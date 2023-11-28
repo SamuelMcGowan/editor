@@ -34,6 +34,9 @@ impl Editor {
                 KeyCode::Char(ch) => self.insert_char(ch),
                 KeyCode::Return => self.insert_char('\n'),
 
+                KeyCode::Backspace => self.backspace(),
+                KeyCode::Delete => self.delete(),
+
                 KeyCode::Left => self.move_left(),
                 KeyCode::Right => self.move_right(),
                 KeyCode::Up => self.move_up(),
@@ -96,6 +99,38 @@ impl Editor {
         }
 
         self.cursor_x_ghost = self.cursor_x;
+    }
+
+    fn backspace(&mut self) {
+        let idx = self.cursor_idx();
+        let before = self.rope.byte_slice(..idx);
+
+        let Some(prev) = before.graphemes().next_back() else {
+            self.cursor_x_ghost = self.cursor_x;
+            return;
+        };
+
+        if self.cursor_x > 0 {
+            self.cursor_x -= 1;
+        } else if self.cursor_y > 0 {
+            self.cursor_x = self.rope.line(self.cursor_y - 1).width();
+            self.cursor_y -= 1;
+        }
+        self.cursor_x_ghost = self.cursor_x;
+
+        self.rope.delete(idx - prev.len()..idx);
+    }
+
+    fn delete(&mut self) {
+        let idx = self.cursor_idx();
+        let after = self.rope.byte_slice(idx..);
+
+        let Some(next) = after.graphemes().next() else {
+            self.cursor_x_ghost = self.cursor_x;
+            return;
+        };
+
+        self.rope.delete(idx..idx + next.len());
     }
 
     fn move_left(&mut self) {
