@@ -1,4 +1,5 @@
 mod panic;
+mod utils;
 
 use std::time::{Duration, Instant};
 
@@ -10,6 +11,7 @@ use ash_term::platform::{Events, PlatformTerminal, Terminal, Writer};
 use ash_term::style::Style;
 use ash_term::units::Offset;
 use crop::Rope;
+use utils::{LineSegment, LineSegments};
 
 const FRAME_RATE: Duration = Duration::from_millis(17);
 
@@ -50,7 +52,6 @@ pub struct Editor {
     rope: Rope,
 
     cursor_byte: usize,
-    cursor: Offset,
 }
 
 impl Editor {
@@ -64,7 +65,6 @@ impl Editor {
             rope: Rope::new(),
 
             cursor_byte: 0,
-            cursor: Offset::ZERO,
         })
     }
 
@@ -94,6 +94,26 @@ impl Editor {
                         modifiers: Modifiers::EMPTY,
                     }) => self.insert_char('\n'),
 
+                    Event::Key(KeyEvent {
+                        key_code: KeyCode::Left,
+                        modifiers: Modifiers::EMPTY,
+                    }) => {
+                        let before_cursor = self.rope.byte_slice(..self.cursor_byte);
+                        if let Some(prev_char) = before_cursor.graphemes().next_back() {
+                            self.cursor_byte -= prev_char.len();
+                        }
+                    }
+
+                    Event::Key(KeyEvent {
+                        key_code: KeyCode::Right,
+                        modifiers: Modifiers::EMPTY,
+                    }) => {
+                        let after_cursor = self.rope.byte_slice(self.cursor_byte..);
+                        if let Some(next_char) = after_cursor.graphemes().next() {
+                            self.cursor_byte += next_char.len();
+                        }
+                    }
+
                     Event::Paste(s) => self.insert_str(&s),
 
                     _ => (),
@@ -107,46 +127,52 @@ impl Editor {
 
     fn insert_char(&mut self, ch: char) {
         if let '\n' | '\r' = ch {
-            self.cursor.y += 1;
-            self.cursor.x = 0;
-
             self.rope.insert(self.cursor_byte, "\n");
             self.cursor_byte += 1;
-        } else if let Some(width) = unicode_width::UnicodeWidthChar::width(ch) {
-            self.cursor.x += width as u16;
-
+        } else if !ch.is_control() {
             self.rope
                 .insert(self.cursor_byte, ch.encode_utf8(&mut [0; 4]));
             self.cursor_byte += ch.len_utf8();
         } else {
-            // Was a control character.
             return;
         };
     }
 
     fn insert_str(&mut self, s: &str) {
-        for part in s.split_inclusive(|ch: char| ch.is_control()) {
-            let trimmed = part
-                .strip_suffix("\r\n")
-                .or_else(|| part.strip_suffix('\r'))
-                .or_else(|| part.strip_suffix('\n'));
+        for segment in LineSegments::new(s) {
+            log::debug!("segment {segment:?}");
+            match segment {
+                LineSegment::Line(s) => {
+                    for part in s.split(|ch: char| ch.is_control()) {
+                        self.rope.insert(self.cursor_byte, part);
+                        self.cursor_byte += part.len();
+                    }
+                }
 
-            if let Some(trimmed) = trimmed {
-                self.rope.insert(self.cursor_byte, trimmed);
-                self.cursor_byte += trimmed.len();
-
-                self.rope.insert(self.cursor_byte, "\n");
-                self.cursor_byte += 1;
-
-                self.cursor.y += 1;
-                self.cursor.x = 0;
-            } else {
-                self.rope.insert(self.cursor_byte, part);
-                self.cursor_byte += part.len();
-
-                self.cursor.x += unicode_width::UnicodeWidthStr::width(part) as u16;
+                LineSegment::LineBreak => {
+                    self.rope.insert(self.cursor_byte, "\n");
+                    self.cursor_byte += 1;
+                }
             }
         }
+    }
+
+    fn cursor_pos(&self) -> Offset {
+        let line_num = self.rope.line_of_byte(self.cursor_byte);
+
+        let line_start = if line_num > self.rope.line_len() {
+            self.rope.byte_len()
+        } else {
+            self.rope.byte_of_line(line_num)
+        };
+
+        let col_num = self
+            .rope
+            .byte_slice(line_start..self.cursor_byte)
+            .graphemes()
+            .count();
+
+        Offset::new(col_num as u16, line_num as u16)
     }
 
     fn draw_to_buf(&mut self) {
@@ -173,7 +199,7 @@ impl Editor {
             }
         }
 
-        self.char_buf.cursor = Some(self.cursor);
+        self.char_buf.cursor = Some(self.cursor_pos());
     }
 
     fn draw_to_terminal(&mut self) -> Result<()> {
