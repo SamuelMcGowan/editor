@@ -1,3 +1,3 @@
 # Ash Text Editor
 
-A work in progress text editor, build from scratch with minimal dependencies.
+A work in progress text editor, using a custom terminal library.
