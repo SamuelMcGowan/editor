@@ -38,8 +38,9 @@ pub fn catch_and_reprint_panic<T>(f: impl FnOnce() -> T + UnwindSafe) -> Option<
                 .take()
                 .expect("Panicked but could not retrieve saved panic.");
 
+            eprintln!("{}", saved_panic.message);
+
             BacktracePrinter::new()
-                .message(saved_panic.message)
                 .print_trace(
                     &saved_panic.trace,
                     &mut StandardStream::stderr(ColorChoice::Auto),
