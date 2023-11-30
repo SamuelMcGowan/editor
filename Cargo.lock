@@ -50,6 +50,7 @@ dependencies = [
  "crop",
  "fern",
  "log",
+ "unicode-segmentation",
  "unicode-width",
 ]
 

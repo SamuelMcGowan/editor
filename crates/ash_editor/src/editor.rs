@@ -1,11 +1,12 @@
 use std::ops::ControlFlow;
 
 use anyhow::Result;
-use ash_term::char_buffer::{Cell, CharBuffer};
+use ash_term::buffer::{Buffer, Cell};
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
 use ash_term::style::{Style, Weight};
 use ash_term::units::{OffsetU16, OffsetUsize};
 use crop::{Rope, RopeSlice};
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::utils::{LineSegment, LineSegments};
@@ -105,7 +106,7 @@ impl Editor {
         }
 
         if let Some(LineSegment::Line(last_line)) = LineSegments::new(s).next_back() {
-            self.cursor.x += last_line.width();
+            self.cursor.x += last_line.graphemes(true).count();
         }
 
         self.cursor_x_ghost = self.cursor.x;
@@ -216,7 +217,7 @@ impl Editor {
         }
     }
 
-    pub fn draw(&mut self, buffer: &mut CharBuffer) {
+    pub fn draw(&mut self, buffer: &mut Buffer) {
         self.scroll_to_show_cursor(buffer);
 
         self.draw_gutter(buffer);
@@ -224,40 +225,43 @@ impl Editor {
         self.draw_cursor(buffer);
     }
 
-    fn draw_text(&self, buffer: &mut CharBuffer) {
+    fn draw_text(&self, buffer: &mut Buffer) {
         let size: OffsetUsize = buffer.size().saturating_sub(GUTTER_OFFSET).into();
 
-        for (y, mut line) in self
+        for (y, line) in self
             .rope
             .lines()
             .skip(self.scroll.y)
             .take(size.y)
             .enumerate()
         {
-            if line.byte_len() >= self.scroll.x {
-                line = line.byte_slice(self.scroll.x..);
-            }
+            let mut x = 0;
+            for grapheme in line.graphemes() {
+                if x >= self.scroll.x {
+                    let column = x - self.scroll.x;
 
-            if line.byte_len() > size.x {
-                line = line.byte_slice(..size.x);
-            }
+                    if column >= size.x {
+                        break;
+                    }
 
-            // FIXME: use graphemes.
-            for (ch, x) in line.chars().zip(GUTTER.len()..) {
-                buffer[[x as u16, y as u16]] = Some(Cell::new(ch, Style::default()));
+                    buffer[[(GUTTER.len() + column) as u16, y as u16]] =
+                        Some(Cell::empty().with_symbol(&grapheme));
+                }
+
+                x += grapheme.width();
             }
         }
     }
 
-    fn draw_gutter(&self, buffer: &mut CharBuffer) {
+    fn draw_gutter(&self, buffer: &mut Buffer) {
         for y in 0..buffer.size().y {
             for (x, ch) in GUTTER.chars().enumerate() {
-                buffer[[x as u16, y]] = Some(Cell::new(ch, GUTTER_STYLE));
+                buffer[[x as u16, y]] = Some(Cell::empty().with_char(ch).with_style(GUTTER_STYLE));
             }
         }
     }
 
-    fn draw_cursor(&self, buffer: &mut CharBuffer) {
+    fn draw_cursor(&self, buffer: &mut Buffer) {
         let size: OffsetUsize = buffer.size().saturating_sub(GUTTER_OFFSET).into();
 
         let cursor = self.cursor.saturating_sub(self.scroll);
@@ -267,7 +271,7 @@ impl Editor {
         }
     }
 
-    fn scroll_to_show_cursor(&mut self, buffer: &CharBuffer) {
+    fn scroll_to_show_cursor(&mut self, buffer: &Buffer) {
         let size: OffsetUsize = buffer.size().saturating_sub(GUTTER_OFFSET).into();
 
         if self.cursor.x < self.scroll.x {
@@ -290,6 +294,6 @@ trait RopeSliceExt {
 
 impl RopeSliceExt for RopeSlice<'_> {
     fn width(&self) -> usize {
-        self.graphemes().map(|g| g.len()).sum()
+        self.graphemes().count()
     }
 }

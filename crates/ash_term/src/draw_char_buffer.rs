@@ -1,9 +1,9 @@
-use crate::char_buffer::CharBuffer;
+use crate::buffer::Buffer;
 use crate::platform::Writer;
 use crate::style::Style;
 use crate::units::OffsetU16;
 
-pub fn draw_diff(old: &CharBuffer, new: &CharBuffer, w: &mut impl Writer) {
+pub fn draw_diff(old: &Buffer, new: &Buffer, w: &mut impl Writer) {
     if old.size() != new.size() {
         draw_no_diff(new, w);
         return;
@@ -19,17 +19,17 @@ pub fn draw_diff(old: &CharBuffer, new: &CharBuffer, w: &mut impl Writer) {
 
     for y in 0..new.size().y {
         for x in 0..new.size().x {
-            let old_cell = old[[x, y]];
-            let new_cell = new[[x, y]];
+            let old_cell = &old[[x, y]];
+            let new_cell = &new[[x, y]];
 
             if old_cell == new_cell {
                 continue;
             }
 
-            let cell = new_cell.unwrap_or_default();
+            let cell = new_cell.as_ref().unwrap_or_default();
 
-            draw_style_diff(style, cell.style, w);
-            style = cell.style;
+            draw_style_diff(style, cell.style(), w);
+            style = cell.style();
 
             let cell_pos = OffsetU16::new(x, y);
             if cell_pos != cursor_pos {
@@ -39,7 +39,7 @@ pub fn draw_diff(old: &CharBuffer, new: &CharBuffer, w: &mut impl Writer) {
 
             cursor_pos.x = cursor_pos.x.saturating_add(1);
 
-            w.write_char(cell.c);
+            w.write_str_raw(cell.symbol());
         }
     }
 
@@ -49,7 +49,7 @@ pub fn draw_diff(old: &CharBuffer, new: &CharBuffer, w: &mut impl Writer) {
     }
 }
 
-fn draw_no_diff(buf: &CharBuffer, w: &mut impl Writer) {
+fn draw_no_diff(buf: &Buffer, w: &mut impl Writer) {
     log::debug!("redrawing");
 
     w.clear_all();
@@ -64,7 +64,7 @@ fn draw_no_diff(buf: &CharBuffer, w: &mut impl Writer) {
 
     for y in 0..buf.size().y {
         for x in 0..buf.size().x {
-            let Some(cell) = buf[[x, y]] else {
+            let Some(cell) = &buf[[x, y]] else {
                 pos_dirty = true;
                 continue;
             };
@@ -73,10 +73,10 @@ fn draw_no_diff(buf: &CharBuffer, w: &mut impl Writer) {
                 w.set_cursor_pos([x, y]);
             }
 
-            draw_style_diff(style, cell.style, w);
-            style = cell.style;
+            draw_style_diff(style, cell.style(), w);
+            style = cell.style();
 
-            w.write_char(cell.c);
+            w.write_str_raw(cell.symbol());
         }
 
         pos_dirty = true;

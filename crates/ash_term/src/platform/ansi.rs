@@ -95,17 +95,7 @@ impl<W: Write> Writer for AnsiWriter<W> {
     }
 
     #[inline]
-    fn write_char(&mut self, c: char) {
-        if c.is_control() {
-            return;
-        }
-        write!(self.buf, "{c}").unwrap();
-    }
-
-    #[inline]
-    fn write_str(&mut self, s: &str) {
-        for part in s.split(|c: char| c.is_control()) {
-            write!(self.buf, "{part}").unwrap();
-        }
+    fn write_str_raw(&mut self, s: &str) {
+        write!(self.buf, "{s}").unwrap();
     }
 }

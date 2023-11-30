@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use ash_term::char_buffer::CharBuffer;
+use ash_term::buffer::Buffer;
 use ash_term::draw_char_buffer::draw_diff;
 use ash_term::platform::{Events, PlatformTerminal, Terminal, Writer};
 use ash_term::units::OffsetU16;
@@ -45,8 +45,8 @@ fn init_logging() -> Result<()> {
 struct App {
     terminal: PlatformTerminal,
 
-    char_buf_prev: CharBuffer,
-    char_buf: CharBuffer,
+    char_buf_prev: Buffer,
+    char_buf: Buffer,
 
     editor: Editor,
 }
@@ -56,8 +56,8 @@ impl App {
         Ok(Self {
             terminal: PlatformTerminal::init()?,
 
-            char_buf_prev: CharBuffer::new(OffsetU16::ZERO),
-            char_buf: CharBuffer::new(OffsetU16::ZERO),
+            char_buf_prev: Buffer::new(OffsetU16::ZERO),
+            char_buf: Buffer::new(OffsetU16::ZERO),
 
             editor: Editor::default(),
         })
@@ -84,7 +84,7 @@ impl App {
     fn draw(&mut self) -> Result<()> {
         let size = self.terminal.size()?;
 
-        self.char_buf.resize_and_clear(size, None);
+        self.char_buf.resize_and_clear(size);
         self.editor.draw(&mut self.char_buf);
 
         draw_diff(&self.char_buf_prev, &self.char_buf, self.terminal.writer());

@@ -56,11 +56,18 @@ impl<'a> DoubleEndedIterator for LineSegments<'a> {
             return Some(LineSegment::LineBreak);
         }
 
-        let prev_index = self.s.rfind(is_line_break).unwrap_or(0);
-        let (line, rest) = self.s.split_at(prev_index + 1);
-        self.s = rest;
-
-        Some(LineSegment::Line(line))
+        match self.s.rfind(is_line_break) {
+            Some(prev_index) => {
+                let (line, rest) = self.s.split_at(prev_index + 1);
+                self.s = rest;
+                Some(LineSegment::Line(line))
+            }
+            None => {
+                let line = self.s;
+                self.s = "";
+                Some(LineSegment::Line(line))
+            }
+        }
     }
 }
 

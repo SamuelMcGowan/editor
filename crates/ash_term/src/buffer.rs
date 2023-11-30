@@ -51,12 +51,19 @@ impl Default for Cell {
     }
 }
 
+impl Default for &Cell {
+    fn default() -> Self {
+        const DEFAULT_CELL: &Cell = &Cell::empty();
+        DEFAULT_CELL
+    }
+}
+
 #[derive(Debug)]
 pub struct Buffer {
     buf: Vec<Option<Cell>>,
     size: OffsetU16,
 
-    cursor: Option<OffsetU16>,
+    pub cursor: Option<OffsetU16>,
 }
 
 impl Clone for Buffer {

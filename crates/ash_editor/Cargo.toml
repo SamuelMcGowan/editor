@@ -14,6 +14,7 @@ crop = { version = "0.4.0", features = ["graphemes"] }
 fern = "0.6.2"
 log = { workspace = true }
 unicode-width = "0.1.11"
+unicode-segmentation = "1.10.1"
 
 [lints]
 workspace = true
