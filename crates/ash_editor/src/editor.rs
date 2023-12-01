@@ -4,6 +4,7 @@ use std::ops::ControlFlow;
 use anyhow::Result;
 use ash_term::buffer::{BufferView, Cell};
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
+use ash_term::style::{Style, Weight};
 use ash_term::units::{OffsetU16, OffsetUsize};
 use crop::{Rope, RopeSlice};
 use unicode_width::UnicodeWidthStr;
@@ -244,9 +245,48 @@ impl Editor {
     pub fn draw(&mut self, buffer: &mut BufferView) {
         self.scroll_to_show_cursor(buffer.size().into());
 
-        // ignoring gutter for now
-        self.draw_text(buffer);
-        self.draw_cursor(buffer);
+        let gutter_width = self.draw_gutter(buffer);
+
+        let mut edit_view = buffer.view(gutter_width as u16.., .., true);
+        self.draw_text(&mut edit_view);
+        self.draw_cursor(&mut edit_view);
+    }
+
+    fn draw_gutter(&self, buffer: &mut BufferView) -> usize {
+        const GUTTER_SUFFIX: &str = " ";
+        const GUTTER_STYLE: Style = Style {
+            weight: Weight::Dim,
+            ..Style::EMPTY
+        };
+
+        let line_width = self
+            .rope
+            .line_len()
+            .saturating_sub(1)
+            .checked_ilog10()
+            .unwrap_or_default() as usize
+            + 1;
+
+        let gutters = (self.scroll_offset.y..(self.rope.line_len()))
+            .map(Some)
+            .chain(std::iter::repeat(None))
+            .map(|line| {
+                if let Some(line) = line {
+                    format!("{line:>line_width$}{GUTTER_SUFFIX}")
+                } else {
+                    format!("{:>line_width$}{GUTTER_SUFFIX}", "~")
+                }
+            });
+
+        for (y, gutter) in (0..buffer.size().y as usize).zip(gutters) {
+            // TODO: use graphemes
+            for (x, ch) in gutter.chars().enumerate() {
+                buffer[[x as u16, y as u16]] =
+                    Some(Cell::empty().with_char(ch).with_style(GUTTER_STYLE))
+            }
+        }
+
+        line_width + GUTTER_SUFFIX.len()
     }
 
     fn draw_text(&self, buffer: &mut BufferView) {

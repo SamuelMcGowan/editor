@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut};
+use std::ops::{Bound, Index, IndexMut, Range, RangeBounds};
 
 use compact_str::{CompactString, ToCompactString};
 
@@ -132,6 +132,23 @@ pub struct BufferView<'a> {
 }
 
 impl<'a> BufferView<'a> {
+    pub fn view(
+        &mut self,
+        x: impl RangeBounds<u16>,
+        y: impl RangeBounds<u16>,
+        set_cursor: bool,
+    ) -> BufferView {
+        let x = bounds_within_domain(x, 0..self.size().x);
+        let y = bounds_within_domain(y, 0..self.size().y);
+
+        BufferView {
+            buf: self.buf,
+            start: OffsetU16::new(x.0, y.0),
+            end: OffsetU16::new(x.1, y.1),
+            set_cursor: set_cursor && self.set_cursor,
+        }
+    }
+
     pub fn size(&self) -> OffsetU16 {
         self.end - self.start
     }
@@ -195,6 +212,22 @@ impl<I: Into<OffsetU16>> IndexMut<I> for BufferView<'_> {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         self.get_mut(index).expect("out of bounds")
     }
+}
+
+fn bounds_within_domain(bounds: impl RangeBounds<u16>, domain: Range<u16>) -> (u16, u16) {
+    let start = match bounds.start_bound() {
+        Bound::Included(&start) => (domain.start + start).min(domain.end),
+        Bound::Excluded(&start) => (domain.start + start + 1).min(domain.end),
+        Bound::Unbounded => domain.start,
+    };
+
+    let end = match bounds.end_bound() {
+        Bound::Included(&end) => (domain.start + end + 1).min(domain.end),
+        Bound::Excluded(&end) => (domain.start + end).min(domain.end),
+        Bound::Unbounded => domain.end,
+    };
+
+    (start, end)
 }
 
 #[cfg(test)]
