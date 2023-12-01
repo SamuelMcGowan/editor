@@ -2,11 +2,13 @@ use std::borrow::Cow;
 use std::ops::ControlFlow;
 
 use anyhow::Result;
+use ash_term::buffer::{Buffer, Cell};
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
-use ash_term::units::OffsetUsize;
+use ash_term::units::{OffsetU16, OffsetUsize};
 use crop::{Rope, RopeSlice};
 use unicode_width::UnicodeWidthStr;
 
+#[derive(Default)]
 pub struct Editor {
     rope: Rope,
 
@@ -58,6 +60,7 @@ impl Editor {
 
     fn insert_str(&mut self, s: &str) {
         self.rope.insert(self.cursor_index, s);
+        self.cursor_index += s.len();
         self.target_column = None;
     }
 
@@ -67,8 +70,10 @@ impl Editor {
 
     fn backspace(&mut self) {
         if let Some(prev) = self.grapheme_before_cursor() {
+            let prev_len = prev.len();
             self.rope
-                .delete((self.cursor_index - prev.len())..self.cursor_index);
+                .delete((self.cursor_index - prev_len)..self.cursor_index);
+            self.cursor_index -= prev_len;
         }
         self.target_column = None;
     }
@@ -114,28 +119,41 @@ impl Editor {
     }
 
     fn move_vertical(&mut self, n: isize) {
-        let cursor_offset = self.cursor_offset();
+        let prev_cursor_index = self.cursor_index;
 
-        // Doesn't matter if this is greater than the number of lines, `go_to_offset`
-        // handles it.
-        let new_offset_y = cursor_offset.y.saturating_add_signed(n);
+        'main: {
+            let cursor_offset = self.cursor_offset();
 
-        let new_offset_x = match self.target_column {
-            Some(col) => col,
-            None => {
-                let col = cursor_offset.x;
-                self.target_column = Some(col);
-                col
+            let Some(new_offset_y) = cursor_offset.y.checked_add_signed(n) else {
+                self.cursor_index = 0;
+                break 'main;
+            };
+
+            if new_offset_y >= self.rope.line_len() {
+                self.cursor_index = self.rope.byte_len();
+                break 'main;
             }
-        };
 
-        self.go_to_offset(OffsetUsize::new(new_offset_x, new_offset_y));
+            let new_offset_x = match self.target_column {
+                Some(col) => col,
+                None => {
+                    let col = cursor_offset.x;
+                    self.target_column = Some(col);
+                    col
+                }
+            };
+
+            self.go_to_offset(OffsetUsize::new(new_offset_x, new_offset_y));
+        }
+
+        if self.cursor_index == prev_cursor_index {
+            self.target_column = None;
+        }
     }
 
     fn go_to_offset(&mut self, offset: OffsetUsize) {
         if offset.y >= self.rope.line_len() {
             self.cursor_index = self.rope.byte_len();
-            self.target_column = None;
             return;
         };
 
@@ -144,7 +162,7 @@ impl Editor {
 
         let new_column = line.graphemes().try_fold(0, |acc, grapheme| {
             let end = acc + grapheme.width();
-            if offset.x > end {
+            if offset.x >= end {
                 ControlFlow::Continue(end)
             } else {
                 ControlFlow::Break(acc)
@@ -205,14 +223,65 @@ impl Editor {
         OffsetUsize::new(column, line)
     }
 
-    fn get_or_set_start_column(&mut self) -> usize {
-        match self.target_column {
-            Some(col) => col,
-            None => {
-                let col = self.cursor_offset().x;
-                self.target_column = Some(col);
-                col
+    fn scroll_to_show_cursor(&mut self, size: OffsetUsize) {
+        let cursor_offset = self.cursor_offset();
+
+        if cursor_offset.x < self.scroll_offset.x {
+            self.scroll_offset.x = cursor_offset.x;
+        } else if cursor_offset.x >= self.scroll_offset.x + size.x {
+            self.scroll_offset.x = cursor_offset.x - size.x + 1;
+        }
+
+        if cursor_offset.y < self.scroll_offset.y {
+            self.scroll_offset.y = cursor_offset.y;
+        } else if cursor_offset.y >= self.scroll_offset.y + size.y {
+            self.scroll_offset.y = cursor_offset.y - size.y + 1;
+        }
+    }
+}
+
+impl Editor {
+    pub fn draw(&mut self, buffer: &mut Buffer) {
+        self.scroll_to_show_cursor(buffer.size().into());
+
+        // ignoring gutter for now
+        self.draw_text(buffer);
+        self.draw_cursor(buffer);
+    }
+
+    fn draw_text(&self, buffer: &mut Buffer) {
+        let size: OffsetUsize = buffer.size().into();
+
+        for (y, line) in self
+            .rope
+            .lines()
+            .skip(self.scroll_offset.y)
+            .take(size.y)
+            .enumerate()
+        {
+            let mut x = 0;
+            for grapheme in line.graphemes() {
+                if x >= self.scroll_offset.x {
+                    let column = x - self.scroll_offset.x;
+
+                    if column >= size.x {
+                        break;
+                    }
+
+                    buffer[[column as u16, y as u16]] = Some(Cell::empty().with_symbol(&grapheme));
+                }
+
+                x += grapheme.width();
             }
+        }
+    }
+
+    fn draw_cursor(&self, buffer: &mut Buffer) {
+        // If we support cursors being offscreen, we can't use saturating sub.
+        let cursor = self.cursor_offset().saturating_sub(self.scroll_offset);
+
+        if cursor.cmp_lt(buffer.size().into()).both() {
+            buffer.cursor = Some(OffsetU16::from(cursor));
         }
     }
 }
