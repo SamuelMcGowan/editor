@@ -10,7 +10,12 @@ ash_term = { path = "../ash_term" }
 backtrace = "0.3.69"
 chrono = "0.4.31"
 color-backtrace = "0.6.1"
-crop = { version = "0.4.0", features = ["graphemes"] }
+
+# fixed a bug that was causing issues for me
+crop = { git = "https://github.com/SamuelMcGowan/crop", features = [
+    "graphemes",
+] }
+
 fern = "0.6.2"
 log = { workspace = true }
 unicode-width = "0.1.11"
