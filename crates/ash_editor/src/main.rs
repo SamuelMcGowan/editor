@@ -1,5 +1,4 @@
 mod editor;
-mod editor2;
 mod panic;
 mod utils;
 
@@ -11,7 +10,7 @@ use ash_term::buffer::Buffer;
 use ash_term::draw_char_buffer::draw_diff;
 use ash_term::platform::{Events, PlatformTerminal, Terminal, Writer};
 use ash_term::units::OffsetU16;
-use editor2::Editor;
+use editor::Editor;
 
 const FRAME_RATE: Duration = Duration::from_millis(17);
 

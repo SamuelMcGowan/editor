@@ -1,33 +1,25 @@
+use std::borrow::Cow;
 use std::ops::ControlFlow;
 
 use anyhow::Result;
 use ash_term::buffer::{Buffer, Cell};
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
-use ash_term::style::{Style, Weight};
 use ash_term::units::{OffsetU16, OffsetUsize};
 use crop::{Rope, RopeSlice};
-use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-
-use crate::utils::{LineSegment, LineSegments};
-
-const GUTTER: &str = "# ";
-
-const GUTTER_STYLE: Style = Style {
-    weight: Weight::Dim,
-    ..Style::EMPTY
-};
-
-const GUTTER_OFFSET: OffsetU16 = OffsetU16::new(GUTTER.len() as u16, 0);
 
 #[derive(Default)]
 pub struct Editor {
     rope: Rope,
 
-    cursor: OffsetUsize,
-    cursor_x_ghost: usize,
+    /// Cursor position, as a byte index.
+    cursor_index: usize,
 
-    scroll: OffsetUsize,
+    /// Column to try to move to when moving (in cells).
+    target_column: Option<usize>,
+
+    /// Scroll offset, in cells.
+    scroll_offset: OffsetUsize,
 }
 
 impl Editor {
@@ -55,7 +47,6 @@ impl Editor {
 
                 KeyCode::Home => self.move_home(),
                 KeyCode::End => self.move_end(),
-
                 _ => {}
             },
 
@@ -67,185 +58,217 @@ impl Editor {
         ControlFlow::Continue(())
     }
 
-    fn insert_char(&mut self, ch: char) {
-        if let '\n' | '\r' = ch {
-            self.rope.insert(self.cursor_idx(), "\n");
-            self.cursor.x = 0;
-            self.cursor.y += 1;
-        } else if !ch.is_control() {
-            self.rope
-                .insert(self.cursor_idx(), ch.encode_utf8(&mut [0; 4]));
-            self.cursor.x += 1;
-        } else {
-            return;
-        };
-
-        self.cursor_x_ghost = self.cursor.x;
+    fn insert_str(&mut self, s: &str) {
+        self.rope.insert(self.cursor_index, s);
+        self.cursor_index += s.len();
+        self.target_column = None;
     }
 
-    fn insert_str(&mut self, s: &str) {
-        let mut idx = self.cursor_idx();
-
-        for segment in LineSegments::new(s) {
-            match segment {
-                LineSegment::Line(s) => {
-                    for part in s.split(|ch: char| ch.is_control()) {
-                        self.rope.insert(idx, part);
-                        idx += part.len();
-                    }
-                }
-
-                LineSegment::LineBreak => {
-                    self.rope.insert(idx, "\n");
-                    idx += 1;
-
-                    self.cursor.x = 0;
-                    self.cursor.y += 1;
-                }
-            }
-        }
-
-        if let Some(LineSegment::Line(last_line)) = LineSegments::new(s).next_back() {
-            self.cursor.x += last_line.graphemes(true).count();
-        }
-
-        self.cursor_x_ghost = self.cursor.x;
+    fn insert_char(&mut self, ch: char) {
+        self.insert_str(ch.encode_utf8(&mut [0; 4]));
     }
 
     fn backspace(&mut self) {
-        let idx = self.cursor_idx();
-        let before = self.rope.byte_slice(..idx);
-
-        let Some(prev) = before.graphemes().next_back() else {
-            self.cursor_x_ghost = self.cursor.x;
-            return;
-        };
-
-        if self.cursor.x > 0 {
-            self.cursor.x -= 1;
-        } else if self.cursor.y > 0 {
-            self.cursor.x = self.rope.line(self.cursor.y - 1).width();
-            self.cursor.y -= 1;
+        if let Some(prev) = self.grapheme_before_cursor() {
+            let prev_len = prev.len();
+            self.rope
+                .delete((self.cursor_index - prev_len)..self.cursor_index);
+            self.cursor_index -= prev_len;
         }
-        self.cursor_x_ghost = self.cursor.x;
-
-        self.rope.delete(idx - prev.len()..idx);
+        self.target_column = None;
     }
 
     fn delete(&mut self) {
-        let idx = self.cursor_idx();
-        let after = self.rope.byte_slice(idx..);
-
-        let Some(next) = after.graphemes().next() else {
-            self.cursor_x_ghost = self.cursor.x;
-            return;
-        };
-
-        self.rope.delete(idx..idx + next.len());
+        if let Some(next) = self.grapheme_after_cursor() {
+            self.rope
+                .delete(self.cursor_index..(self.cursor_index + next.len()));
+        }
+        self.target_column = None;
     }
 
     fn move_left(&mut self) {
-        if self.cursor.x > 0 {
-            self.cursor.x -= 1;
-        } else if self.cursor.y > 0 {
-            self.cursor.y -= 1;
-            self.cursor.x = self.current_line().width();
+        if let Some(prev) = self.grapheme_before_cursor() {
+            self.cursor_index -= prev.len();
         }
-        self.cursor_x_ghost = self.cursor.x;
+        self.target_column = None;
     }
 
     fn move_right(&mut self) {
-        if self.cursor.x < self.current_line().width() {
-            self.cursor.x += 1;
-        } else if self.cursor.y + 1 < self.rope.line_len() {
-            self.cursor.y += 1;
-            self.cursor.x = 0;
+        if let Some(next) = self.grapheme_after_cursor() {
+            self.cursor_index += next.len();
         }
-        self.cursor_x_ghost = self.cursor.x;
+        self.target_column = None;
     }
 
     fn move_up(&mut self) {
-        if self.cursor.y == 0 {
-            self.move_home()
-        } else {
-            self.cursor.y -= 1;
-            self.cursor.x = self.cursor_x_ghost.min(self.current_line().width());
-        }
+        self.move_vertical(-1);
     }
 
     fn move_down(&mut self) {
-        if self.cursor.y + 1 < self.rope.line_len() {
-            self.cursor.y += 1;
-            self.cursor.x = self.cursor_x_ghost.min(self.current_line().width());
-        } else {
-            self.move_end();
-        }
+        self.move_vertical(1);
     }
 
     fn move_home(&mut self) {
-        self.cursor.x = 0;
-        self.cursor_x_ghost = 0;
+        self.go_to_offset(OffsetUsize::new(0, self.cursor_offset().y));
     }
 
     fn move_end(&mut self) {
-        self.cursor.x = self.current_line().width();
-        self.cursor_x_ghost = self.cursor.x;
+        let (_, line) = self.current_line();
+        let line_width = line.chunks().map(|chunk| chunk.width()).sum();
+        self.go_to_offset(OffsetUsize::new(line_width, self.cursor_offset().y))
     }
 
-    fn current_line(&self) -> RopeSlice {
-        if self.cursor.y >= self.rope.line_len() {
-            self.rope.byte_slice(self.rope.byte_len()..)
-        } else {
-            self.rope.line(self.cursor.y)
+    fn move_vertical(&mut self, n: isize) {
+        let prev_cursor_index = self.cursor_index;
+
+        'main: {
+            let cursor_offset = self.cursor_offset();
+
+            let Some(new_offset_y) = cursor_offset.y.checked_add_signed(n) else {
+                self.cursor_index = 0;
+                break 'main;
+            };
+
+            if new_offset_y >= self.rope.line_len() {
+                self.cursor_index = self.rope.byte_len();
+                break 'main;
+            }
+
+            let new_offset_x = match self.target_column {
+                Some(col) => col,
+                None => {
+                    let col = cursor_offset.x;
+                    self.target_column = Some(col);
+                    col
+                }
+            };
+
+            self.go_to_offset(OffsetUsize::new(new_offset_x, new_offset_y));
+        }
+
+        if self.cursor_index == prev_cursor_index {
+            self.target_column = None;
         }
     }
 
-    fn cursor_idx(&self) -> usize {
-        if self.cursor.y >= self.rope.line_len() {
-            self.rope.byte_len()
-        } else {
-            let line_start = self.rope.byte_of_line(self.cursor.y);
-            let column_len: usize = self
-                .rope
-                .line(self.cursor.y)
-                .graphemes()
-                .take(self.cursor.x)
-                .map(|g| g.len())
-                .sum();
+    fn go_to_offset(&mut self, offset: OffsetUsize) {
+        if offset.y >= self.rope.line_len() {
+            self.cursor_index = self.rope.byte_len();
+            return;
+        };
 
-            line_start + column_len
-        }
+        let line = self.rope.line(offset.y);
+        let line_start = self.rope.byte_of_line(offset.y);
+
+        let new_column = line.graphemes().try_fold(0, |acc, grapheme| {
+            let end = acc + grapheme.width();
+            if offset.x >= end {
+                ControlFlow::Continue(end)
+            } else {
+                ControlFlow::Break(acc)
+            }
+        });
+
+        let new_column = match new_column {
+            ControlFlow::Break(start) => start,
+            ControlFlow::Continue(start) => start,
+        };
+
+        self.cursor_index = line_start + new_column;
     }
 
+    fn grapheme_before_cursor(&self) -> Option<Cow<str>> {
+        self.rope_before_cursor().graphemes().next_back()
+    }
+
+    fn grapheme_after_cursor(&self) -> Option<Cow<str>> {
+        self.rope_after_cursor().graphemes().next()
+    }
+
+    fn rope_before_cursor(&self) -> RopeSlice {
+        self.rope.byte_slice(..self.cursor_index)
+    }
+
+    fn rope_after_cursor(&self) -> RopeSlice {
+        self.rope.byte_slice(self.cursor_index..)
+    }
+
+    fn current_line(&self) -> (usize, RopeSlice) {
+        let line_num = self.rope.line_of_byte(self.cursor_index);
+
+        let slice = if line_num == self.rope.line_len() {
+            self.rope.byte_slice(self.cursor_index..)
+        } else {
+            self.rope.line(line_num)
+        };
+
+        (line_num, slice)
+    }
+
+    /// The cursor offset, in cells.
+    fn cursor_offset(&self) -> OffsetUsize {
+        let line = self.rope.line_of_byte(self.cursor_index);
+        let line_start = self.rope.byte_of_line(line);
+
+        // Fine to sum up the widths of each chunk - the `width` implementation just
+        // sums the character widths, so it seems there's nothing contextual
+        // that is lost by splitting up a string.
+        let column: usize = self
+            .rope
+            .byte_slice(line_start..self.cursor_index)
+            .chunks()
+            .map(|s| s.width())
+            .sum();
+
+        OffsetUsize::new(column, line)
+    }
+
+    fn scroll_to_show_cursor(&mut self, size: OffsetUsize) {
+        let cursor_offset = self.cursor_offset();
+
+        if cursor_offset.x < self.scroll_offset.x {
+            self.scroll_offset.x = cursor_offset.x;
+        } else if cursor_offset.x >= self.scroll_offset.x + size.x {
+            self.scroll_offset.x = cursor_offset.x - size.x + 1;
+        }
+
+        if cursor_offset.y < self.scroll_offset.y {
+            self.scroll_offset.y = cursor_offset.y;
+        } else if cursor_offset.y >= self.scroll_offset.y + size.y {
+            self.scroll_offset.y = cursor_offset.y - size.y + 1;
+        }
+    }
+}
+
+impl Editor {
     pub fn draw(&mut self, buffer: &mut Buffer) {
-        self.scroll_to_show_cursor(buffer);
+        self.scroll_to_show_cursor(buffer.size().into());
 
-        self.draw_gutter(buffer);
+        // ignoring gutter for now
         self.draw_text(buffer);
         self.draw_cursor(buffer);
     }
 
     fn draw_text(&self, buffer: &mut Buffer) {
-        let size: OffsetUsize = buffer.size().saturating_sub(GUTTER_OFFSET).into();
+        let size: OffsetUsize = buffer.size().into();
 
         for (y, line) in self
             .rope
             .lines()
-            .skip(self.scroll.y)
+            .skip(self.scroll_offset.y)
             .take(size.y)
             .enumerate()
         {
             let mut x = 0;
             for grapheme in line.graphemes() {
-                if x >= self.scroll.x {
-                    let column = x - self.scroll.x;
+                if x >= self.scroll_offset.x {
+                    let column = x - self.scroll_offset.x;
 
                     if column >= size.x {
                         break;
                     }
 
-                    buffer[[(GUTTER.len() + column) as u16, y as u16]] =
-                        Some(Cell::empty().with_symbol(&grapheme));
+                    buffer[[column as u16, y as u16]] = Some(Cell::empty().with_symbol(&grapheme));
                 }
 
                 x += grapheme.width();
@@ -253,47 +276,12 @@ impl Editor {
         }
     }
 
-    fn draw_gutter(&self, buffer: &mut Buffer) {
-        for y in 0..buffer.size().y {
-            for (x, ch) in GUTTER.chars().enumerate() {
-                buffer[[x as u16, y]] = Some(Cell::empty().with_char(ch).with_style(GUTTER_STYLE));
-            }
-        }
-    }
-
     fn draw_cursor(&self, buffer: &mut Buffer) {
-        let size: OffsetUsize = buffer.size().saturating_sub(GUTTER_OFFSET).into();
+        // If we support cursors being offscreen, we can't use saturating sub.
+        let cursor = self.cursor_offset().saturating_sub(self.scroll_offset);
 
-        let cursor = self.cursor.saturating_sub(self.scroll);
-
-        if cursor.cmp_lt(size).both() {
-            buffer.cursor = Some(OffsetU16::from(cursor) + GUTTER_OFFSET);
+        if cursor.cmp_lt(buffer.size().into()).both() {
+            buffer.cursor = Some(OffsetU16::from(cursor));
         }
-    }
-
-    fn scroll_to_show_cursor(&mut self, buffer: &Buffer) {
-        let size: OffsetUsize = buffer.size().saturating_sub(GUTTER_OFFSET).into();
-
-        if self.cursor.x < self.scroll.x {
-            self.scroll.x = self.cursor.x;
-        } else if self.cursor.x >= self.scroll.x + size.x {
-            self.scroll.x = self.cursor.x - size.x + 1;
-        }
-
-        if self.cursor.y < self.scroll.y {
-            self.scroll.y = self.cursor.y;
-        } else if self.cursor.y >= self.scroll.y + size.y {
-            self.scroll.y = self.cursor.y - size.y + 1;
-        }
-    }
-}
-
-trait RopeSliceExt {
-    fn width(&self) -> usize;
-}
-
-impl RopeSliceExt for RopeSlice<'_> {
-    fn width(&self) -> usize {
-        self.graphemes().count()
     }
 }
