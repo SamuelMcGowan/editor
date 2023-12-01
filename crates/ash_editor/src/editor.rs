@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::ops::ControlFlow;
 
 use anyhow::Result;
-use ash_term::buffer::{Buffer, Cell};
+use ash_term::buffer::{BufferView, Cell};
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
 use ash_term::units::{OffsetU16, OffsetUsize};
 use crop::{Rope, RopeSlice};
@@ -241,7 +241,7 @@ impl Editor {
 }
 
 impl Editor {
-    pub fn draw(&mut self, buffer: &mut Buffer) {
+    pub fn draw(&mut self, buffer: &mut BufferView) {
         self.scroll_to_show_cursor(buffer.size().into());
 
         // ignoring gutter for now
@@ -249,7 +249,7 @@ impl Editor {
         self.draw_cursor(buffer);
     }
 
-    fn draw_text(&self, buffer: &mut Buffer) {
+    fn draw_text(&self, buffer: &mut BufferView) {
         let size: OffsetUsize = buffer.size().into();
 
         for (y, line) in self
@@ -276,12 +276,12 @@ impl Editor {
         }
     }
 
-    fn draw_cursor(&self, buffer: &mut Buffer) {
+    fn draw_cursor(&self, buffer: &mut BufferView) {
         // If we support cursors being offscreen, we can't use saturating sub.
         let cursor = self.cursor_offset().saturating_sub(self.scroll_offset);
 
         if cursor.cmp_lt(buffer.size().into()).both() {
-            buffer.cursor = Some(OffsetU16::from(cursor));
+            buffer.set_cursor(Some(OffsetU16::from(cursor)));
         }
     }
 }

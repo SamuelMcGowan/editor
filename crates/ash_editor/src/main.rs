@@ -85,9 +85,14 @@ impl App {
         let size = self.terminal.size()?;
 
         self.char_buf.resize_and_clear(size);
-        self.editor.draw(&mut self.char_buf);
+        self.editor.draw(&mut self.char_buf.view(true));
 
-        draw_diff(&self.char_buf_prev, &self.char_buf, self.terminal.writer());
+        draw_diff(
+            &self.char_buf_prev.view(false),
+            &self.char_buf.view(false),
+            self.terminal.writer(),
+        );
+
         self.terminal.writer().flush()?;
 
         self.char_buf_prev.clone_from(&self.char_buf);

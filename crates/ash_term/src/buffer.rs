@@ -1,9 +1,9 @@
 use std::ops::{Index, IndexMut};
 
 use compact_str::{CompactString, ToCompactString};
-use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
 
+// use unicode_segmentation::UnicodeSegmentation;
+// use unicode_width::UnicodeWidthStr;
 use crate::style::Style;
 use crate::units::OffsetU16;
 
@@ -94,18 +94,6 @@ impl Buffer {
         }
     }
 
-    pub fn size(&self) -> OffsetU16 {
-        self.size
-    }
-
-    pub fn len(&self) -> usize {
-        self.buf.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     pub fn resize_and_clear(&mut self, size: impl Into<OffsetU16>) {
         let size: OffsetU16 = size.into();
 
@@ -124,75 +112,103 @@ impl Buffer {
         self.buf.fill(Some(cell));
     }
 
-    pub fn write_str(&mut self, pos: impl Into<OffsetU16>, s: &str, style: Style) {
-        let pos: OffsetU16 = pos.into();
-
-        let mut x = pos.x;
-        for grapheme in s.graphemes(true) {
-            let width = grapheme.width() as u16;
-
-            let Some(cell) = self.get_mut([x, pos.y]) else {
-                break;
-            };
-
-            *cell = Some(Cell {
-                symbol: grapheme.into(),
-                style,
-            });
-
-            x += width;
+    pub fn view(&mut self, set_cursor: bool) -> BufferView {
+        BufferView {
+            start: OffsetU16::ZERO,
+            end: self.size,
+            buf: self,
+            set_cursor,
         }
+    }
+}
+
+pub struct BufferView<'a> {
+    buf: &'a mut Buffer,
+
+    start: OffsetU16,
+    end: OffsetU16,
+
+    set_cursor: bool,
+}
+
+impl<'a> BufferView<'a> {
+    pub fn size(&self) -> OffsetU16 {
+        self.end - self.start
     }
 
     pub fn get(&self, index: impl Into<OffsetU16>) -> Option<&Option<Cell>> {
-        let index = self.index(index)?;
-        self.buf.get(index)
+        self.buf.buf.get(self.index(index)?)
     }
 
     pub fn get_mut(&mut self, index: impl Into<OffsetU16>) -> Option<&mut Option<Cell>> {
         let index = self.index(index)?;
-        self.buf.get_mut(index)
+        self.buf.buf.get_mut(index)
     }
 
-    fn index(&self, pos: impl Into<OffsetU16>) -> Option<usize> {
-        let pos = pos.into();
+    pub fn set_cursor(&mut self, cursor: Option<impl Into<OffsetU16>>) {
+        if !self.set_cursor {
+            return;
+        }
 
-        if pos.cmp_ge(self.size).either() {
+        let cursor = match cursor {
+            Some(cursor) => {
+                let cursor: OffsetU16 = cursor.into();
+                let cursor = cursor.saturating_add(self.start);
+
+                if cursor.cmp_lt(self.end).both() {
+                    Some(cursor)
+                } else {
+                    None
+                }
+            }
+
+            None => None,
+        };
+
+        self.buf.cursor = cursor;
+    }
+
+    pub fn cursor(&self) -> Option<OffsetU16> {
+        self.buf.cursor
+    }
+
+    fn index(&self, index: impl Into<OffsetU16>) -> Option<usize> {
+        let index = self.start.saturating_add(index.into());
+
+        if index.cmp_gt(self.end).either() {
             return None;
         }
 
-        let index = pos.y as usize * self.size.x as usize + pos.x as usize;
-
-        Some(index)
+        Some(index.y as usize * self.buf.size.x as usize + index.x as usize)
     }
 }
 
-impl<Idx: Into<OffsetU16>> Index<Idx> for Buffer {
+impl<I: Into<OffsetU16>> Index<I> for BufferView<'_> {
     type Output = Option<Cell>;
 
-    fn index(&self, index: Idx) -> &Self::Output {
-        self.get(index).expect("indices out of bounds")
+    fn index(&self, index: I) -> &Self::Output {
+        self.get(index).expect("out of bounds")
     }
 }
 
-impl<Idx: Into<OffsetU16>> IndexMut<Idx> for Buffer {
-    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
-        self.get_mut(index).expect("indices out of bounds")
+impl<I: Into<OffsetU16>> IndexMut<I> for BufferView<'_> {
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        self.get_mut(index).expect("out of bounds")
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{Buffer, Cell};
-    use crate::style::Style;
+    // use crate::style::Style;
 
     #[test]
     fn simple() {
         let b = Cell::empty().with_char('b');
         let c = Cell::empty().with_char('c');
 
-        let mut buf = Buffer::new([10, 10]);
-        assert_eq!(buf.len(), 10 * 10);
+        let mut buff = Buffer::new([10, 10]);
+        let mut buf = buff.view(true);
 
         buf[[0, 0]] = Some(b.clone());
         buf[[9, 9]] = Some(c.clone());
@@ -202,14 +218,16 @@ mod tests {
         assert!(buf.get([10, 10]).is_none());
     }
 
-    #[test]
-    fn write_str() {
-        let mut buf = Buffer::new([10, 10]);
-        buf.write_str([0, 0], "🐻‍❄️!", Style::default());
+    // #[test]
+    // fn write_str() {
+    //     let mut buff = Buffer::new([10, 10]);
+    //     let mut buf = buff.view(true);
 
-        assert_eq!(buf[[0, 0]].as_ref().unwrap().symbol, "🐻\u{200d}❄️");
-        assert_eq!(buf[[1, 0]].as_ref(), None);
-        assert_eq!(buf[[2, 0]].as_ref(), None);
-        assert_eq!(buf[[3, 0]].as_ref().unwrap().symbol, "!");
-    }
+    //     buf.write_str([0, 0], "🐻‍❄️!", Style::default());
+
+    //     assert_eq!(buf[[0, 0]].as_ref().unwrap().symbol, "🐻\u{200d}❄️");
+    //     assert_eq!(buf[[1, 0]].as_ref(), None);
+    //     assert_eq!(buf[[2, 0]].as_ref(), None);
+    //     assert_eq!(buf[[3, 0]].as_ref().unwrap().symbol, "!");
+    // }
 }

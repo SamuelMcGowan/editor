@@ -1,9 +1,9 @@
-use crate::buffer::Buffer;
+use crate::buffer::BufferView;
 use crate::platform::Writer;
 use crate::style::Style;
 use crate::units::OffsetU16;
 
-pub fn draw_diff(old: &Buffer, new: &Buffer, w: &mut impl Writer) {
+pub fn draw_diff(old: &BufferView, new: &BufferView, w: &mut impl Writer) {
     if old.size() != new.size() {
         draw_no_diff(new, w);
         return;
@@ -43,13 +43,13 @@ pub fn draw_diff(old: &Buffer, new: &Buffer, w: &mut impl Writer) {
         }
     }
 
-    if let Some(pos) = new.cursor {
+    if let Some(pos) = new.cursor() {
         w.set_cursor_pos(pos);
         w.set_cursor_vis(true);
     }
 }
 
-fn draw_no_diff(buf: &Buffer, w: &mut impl Writer) {
+fn draw_no_diff(buf: &BufferView, w: &mut impl Writer) {
     log::debug!("redrawing");
 
     w.clear_all();
@@ -82,7 +82,7 @@ fn draw_no_diff(buf: &Buffer, w: &mut impl Writer) {
         pos_dirty = true;
     }
 
-    if let Some(pos) = buf.cursor {
+    if let Some(pos) = buf.cursor() {
         w.set_cursor_pos(pos);
         w.set_cursor_vis(true);
     }
