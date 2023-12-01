@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use ash_term::buffer::Buffer;
-use ash_term::draw_char_buffer::draw_diff;
+use ash_term::draw_buffer::draw_diff;
 use ash_term::platform::{Events, PlatformTerminal, Terminal, Writer};
 use ash_term::units::OffsetU16;
 use editor::Editor;
