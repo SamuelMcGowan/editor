@@ -69,6 +69,13 @@ impl KeyMap {
                 Action::SetMode(Mode::Insert),
             ]),
 
+            KeyEvent::new(KeyCode::Char('d')) => Action::Delete,
+
+            KeyEvent::new(KeyCode::Char('h')) => Action::MoveLeft,
+            KeyEvent::new(KeyCode::Char('l')) => Action::MoveRight,
+            KeyEvent::new(KeyCode::Char('k')) => Action::MoveUp,
+            KeyEvent::new(KeyCode::Char('j')) => Action::MoveDown,
+
             KeyEvent::new(KeyCode::Char('q')) => Action::Quit,
         };
 
