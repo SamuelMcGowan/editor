@@ -139,12 +139,14 @@ impl Editor {
 
     fn move_home(&mut self) {
         self.go_to_offset(OffsetUsize::new(0, self.cursor_offset().y));
+        self.target_column = None;
     }
 
     fn move_end(&mut self) {
         let (_, line) = self.current_line();
         let line_width = line.chunks().map(|chunk| chunk.width()).sum();
-        self.go_to_offset(OffsetUsize::new(line_width, self.cursor_offset().y))
+        self.go_to_offset(OffsetUsize::new(line_width, self.cursor_offset().y));
+        self.target_column = None;
     }
 
     fn move_vertical(&mut self, n: isize) {
