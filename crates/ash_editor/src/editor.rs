@@ -48,6 +48,15 @@ impl Editor {
             }) => match key_code {
                 KeyCode::Char('q') => return ControlFlow::Break(Ok(())),
                 KeyCode::Char('i') => self.mode = Mode::Insert,
+
+                KeyCode::Left => self.move_left(),
+                KeyCode::Right => self.move_right(),
+                KeyCode::Up => self.move_up(),
+                KeyCode::Down => self.move_down(),
+
+                KeyCode::Home => self.move_home(),
+                KeyCode::End => self.move_end(),
+
                 _ => {}
             },
 
