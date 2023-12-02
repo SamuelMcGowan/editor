@@ -47,25 +47,20 @@ fn init_logging() -> Result<()> {
             ))
         })
         .level(log::LevelFilter::Debug)
-        .chain(fern::log_file("output.log")?)
+        .chain(std::io::stderr())
+        .chain(fern::log_file("server.log")?)
         .apply()?;
 
     Ok(())
 }
 
-struct Guard<F: FnMut()>(F);
-
-impl<F: FnMut()> Drop for Guard<F> {
-    fn drop(&mut self) {
-        self.0()
-    }
-}
-
 fn run_server(mut session_file: File) -> Result<()> {
-    let listener = TcpListener::bind(LOCALHOST).context("couldn't bind to socket")?;
+    let listener = TcpListener::bind(LOCALHOST).context("couldn't bind to port")?;
     let addr = listener
         .local_addr()
         .context("couldn't get socket address")?;
+
+    log::info!("listening on port {addr}");
 
     write!(session_file, "{}", addr.port()).context("couldn't write port to session file")?;
 
@@ -81,6 +76,7 @@ fn run_server(mut session_file: File) -> Result<()> {
     Ok(())
 }
 
-fn handle_connection(_stream: TcpStream) -> Result<()> {
+fn handle_connection(stream: TcpStream) -> Result<()> {
+    log::info!("connection established");
     Ok(())
 }
