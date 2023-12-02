@@ -3,11 +3,13 @@ use std::ops::{ControlFlow, Range};
 
 use anyhow::Result;
 use ash_term::buffer::{BufferView, Cell};
-use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
+use ash_term::event::Event;
 use ash_term::style::{CursorShape, CursorStyle, Style, Weight};
 use ash_term::units::{OffsetU16, OffsetUsize};
 use crop::{Rope, RopeSlice};
 use unicode_width::UnicodeWidthStr;
+
+use crate::action::{Action, KeyMap};
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Mode {
@@ -30,72 +32,44 @@ pub struct Editor {
     scroll_offset: OffsetUsize,
 
     mode: Mode,
+
+    keymap: KeyMap,
 }
 
 impl Editor {
     pub fn handle_event(&mut self, event: Event) -> ControlFlow<Result<()>> {
-        match self.mode {
-            Mode::Normal => self.handle_event_normal(event),
-            Mode::Insert => self.handle_event_insert(event),
+        if let Some(action) = self.keymap.get_action(self.mode, event) {
+            self.handle_action(action)
+        } else {
+            ControlFlow::Continue(())
         }
     }
 
-    fn handle_event_normal(&mut self, event: Event) -> ControlFlow<Result<()>> {
-        match event {
-            Event::Key(KeyEvent {
-                key_code,
-                modifiers: Modifiers::EMPTY,
-            }) => match key_code {
-                KeyCode::Char('q') => return ControlFlow::Break(Ok(())),
-                KeyCode::Char('i') => self.mode = Mode::Insert,
+    fn handle_action(&mut self, action: Action) -> ControlFlow<Result<()>> {
+        match action {
+            Action::Combo(actions) => {
+                for action in actions {
+                    self.handle_action(action)?;
+                }
+            }
 
-                KeyCode::Left => self.move_left(),
-                KeyCode::Right => self.move_right(),
-                KeyCode::Up => self.move_up(),
-                KeyCode::Down => self.move_down(),
+            Action::InsertChar(ch) => self.insert_char(ch),
+            Action::InsertString(s) => self.insert_str(&s),
 
-                KeyCode::Home => self.move_home(),
-                KeyCode::End => self.move_end(),
+            Action::Backspace => self.backspace(),
+            Action::Delete => self.delete(),
 
-                _ => {}
-            },
+            Action::MoveLeft => self.move_left(),
+            Action::MoveRight => self.move_right(),
+            Action::MoveUp => self.move_up(),
+            Action::MoveDown => self.move_down(),
 
-            Event::Paste(s) => self.insert_str(&s),
+            Action::MoveHome => self.move_home(),
+            Action::MoveEnd => self.move_end(),
 
-            _ => (),
-        }
+            Action::SetMode(mode) => self.mode = mode,
 
-        ControlFlow::Continue(())
-    }
-
-    fn handle_event_insert(&mut self, event: Event) -> ControlFlow<Result<()>> {
-        match event {
-            Event::Key(KeyEvent {
-                key_code,
-                modifiers: Modifiers::EMPTY,
-            }) => match key_code {
-                KeyCode::Char(ch) => self.insert_char(ch),
-                KeyCode::Return => self.insert_char('\n'),
-
-                KeyCode::Backspace => self.backspace(),
-                KeyCode::Delete => self.delete(),
-
-                KeyCode::Left => self.move_left(),
-                KeyCode::Right => self.move_right(),
-                KeyCode::Up => self.move_up(),
-                KeyCode::Down => self.move_down(),
-
-                KeyCode::Home => self.move_home(),
-                KeyCode::End => self.move_end(),
-
-                KeyCode::Escape => self.mode = Mode::Normal,
-
-                _ => {}
-            },
-
-            Event::Paste(s) => self.insert_str(&s),
-
-            _ => {}
+            Action::Quit => return ControlFlow::Break(Ok(())),
         }
 
         ControlFlow::Continue(())

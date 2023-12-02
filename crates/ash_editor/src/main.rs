@@ -1,3 +1,4 @@
+mod action;
 mod editor;
 mod panic;
 mod utils;

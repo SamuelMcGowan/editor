@@ -150,7 +150,7 @@ fn decode_bytes(bytes: &[u8]) -> Option<Event> {
             let kind = if s.chars().nth(1).is_some() {
                 Event::Paste(s.to_owned())
             } else {
-                Event::Key(KeyEvent::key_no_mods(KeyCode::Char(s.chars().next()?)))
+                Event::Key(KeyEvent::new(KeyCode::Char(s.chars().next()?)))
             };
             Some(kind)
         }
@@ -159,11 +159,11 @@ fn decode_bytes(bytes: &[u8]) -> Option<Event> {
 
 fn decode_byte(byte: u8) -> KeyEvent {
     match byte {
-        b'\t' => KeyEvent::key_no_mods(KeyCode::Tab),
-        b'\n' => KeyEvent::key_no_mods(KeyCode::Newline),
-        b'\r' => KeyEvent::key_no_mods(KeyCode::Return),
+        b'\t' => KeyEvent::new(KeyCode::Tab),
+        b'\n' => KeyEvent::new(KeyCode::Newline),
+        b'\r' => KeyEvent::new(KeyCode::Return),
 
-        b'\x7f' => KeyEvent::key_no_mods(KeyCode::Backspace),
+        b'\x7f' => KeyEvent::new(KeyCode::Backspace),
         b'\x17' => KeyEvent {
             key_code: KeyCode::Backspace,
             modifiers: Modifiers::CTRL,
@@ -174,6 +174,6 @@ fn decode_byte(byte: u8) -> KeyEvent {
             modifiers: Modifiers::CTRL,
         },
 
-        _ => KeyEvent::key_no_mods(KeyCode::Char(byte as char)),
+        _ => KeyEvent::new(KeyCode::Char(byte as char)),
     }
 }

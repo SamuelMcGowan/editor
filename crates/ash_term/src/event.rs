@@ -23,7 +23,14 @@ pub struct KeyEvent {
 }
 
 impl KeyEvent {
-    pub fn key_no_mods(key_code: KeyCode) -> Self {
+    pub fn new_with_mods(key_code: KeyCode, modifiers: Modifiers) -> Self {
+        Self {
+            key_code,
+            modifiers,
+        }
+    }
+
+    pub fn new(key_code: KeyCode) -> Self {
         Self {
             key_code,
             modifiers: Modifiers::empty(),
