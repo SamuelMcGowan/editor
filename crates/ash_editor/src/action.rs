@@ -10,7 +10,10 @@ pub enum Action {
     Combo(Vec<Action>),
 
     InsertChar(char),
+    InsertCharAfter(char),
+
     InsertString(String),
+    InsertStringAfter(String),
 
     Backspace,
     Delete,
@@ -54,6 +57,18 @@ impl KeyMap {
 
         let normal = hashmap! {
             KeyEvent::new(KeyCode::Char('i')) => Action::SetMode(Mode::Insert),
+
+            KeyEvent::new(KeyCode::Char('o')) => Action::Combo(vec![
+                Action::MoveEnd,
+                Action::InsertChar('\n'),
+                Action::SetMode(Mode::Insert),
+            ]),
+            KeyEvent::new(KeyCode::Char('O')) => Action::Combo(vec![
+                Action::MoveHome,
+                Action::InsertCharAfter('\n'),
+                Action::SetMode(Mode::Insert),
+            ]),
+
             KeyEvent::new(KeyCode::Char('q')) => Action::Quit,
         };
 

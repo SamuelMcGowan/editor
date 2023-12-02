@@ -54,7 +54,10 @@ impl Editor {
             }
 
             Action::InsertChar(ch) => self.insert_char(ch),
+            Action::InsertCharAfter(ch) => self.insert_char_after(ch),
+
             Action::InsertString(s) => self.insert_str(&s),
+            Action::InsertStringAfter(s) => self.insert_str_after(&s),
 
             Action::Backspace => self.backspace(),
             Action::Delete => self.delete(),
@@ -81,8 +84,17 @@ impl Editor {
         self.target_column = None;
     }
 
+    fn insert_str_after(&mut self, s: &str) {
+        self.rope.insert(self.cursor_index, s);
+        self.target_column = None;
+    }
+
     fn insert_char(&mut self, ch: char) {
         self.insert_str(ch.encode_utf8(&mut [0; 4]));
+    }
+
+    fn insert_char_after(&mut self, ch: char) {
+        self.insert_str_after(ch.encode_utf8(&mut [0; 4]));
     }
 
     fn backspace(&mut self) {
