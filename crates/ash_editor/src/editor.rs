@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::ops::ControlFlow;
+use std::ops::{ControlFlow, Range};
 
 use anyhow::Result;
 use ash_term::buffer::{BufferView, Cell};
@@ -253,32 +253,19 @@ impl Editor {
     }
 
     fn draw_gutter(&self, buffer: &mut BufferView) -> usize {
-        const GUTTER_SUFFIX: &str = " ";
         const GUTTER_STYLE: Style = Style {
             weight: Weight::Dim,
             ..Style::EMPTY
         };
 
-        let line_width = self
-            .rope
-            .line_len()
-            .saturating_sub(1)
-            .checked_ilog10()
-            .unwrap_or_default() as usize
-            + 1;
+        let gutters = Gutters::new(&self.rope, "", "  ", "~");
+        let max_width = gutters.max_width();
 
-        let gutters = (self.scroll_offset.y..(self.rope.line_len()))
-            .map(Some)
-            .chain(std::iter::repeat(None))
-            .map(|line| {
-                if let Some(line) = line {
-                    format!("{line:>line_width$}{GUTTER_SUFFIX}")
-                } else {
-                    format!("{:>line_width$}{GUTTER_SUFFIX}", "~")
-                }
-            });
-
-        for (y, gutter) in (0..buffer.size().y as usize).zip(gutters) {
+        for (y, gutter) in gutters
+            .skip(self.scroll_offset.y)
+            .take(buffer.size().y as usize)
+            .enumerate()
+        {
             // TODO: use graphemes
             for (x, ch) in gutter.chars().enumerate() {
                 buffer[[x as u16, y as u16]] =
@@ -286,7 +273,7 @@ impl Editor {
             }
         }
 
-        line_width + GUTTER_SUFFIX.len()
+        max_width
     }
 
     fn draw_text(&self, buffer: &mut BufferView) {
@@ -323,5 +310,81 @@ impl Editor {
         if cursor.cmp_lt(buffer.size().into()).both() {
             buffer.set_cursor(Some(OffsetU16::from(cursor)));
         }
+    }
+}
+
+struct Gutters<'a> {
+    lines: Range<usize>,
+    emit_blank: bool,
+
+    max_width: usize,
+
+    prefix: &'a str,
+    postfix: &'a str,
+    blank: &'a str,
+}
+
+impl<'a> Gutters<'a> {
+    fn new(rope: &Rope, prefix: &'a str, postfix: &'a str, blank: &'a str) -> Self {
+        let len = rope.line_len();
+
+        let trailing_newline = match rope.chunks().last() {
+            Some(chunk) => chunk.ends_with('\n'),
+            None => true,
+        };
+
+        let max_width = (len.checked_ilog10().unwrap_or_default() as usize + 1).max(blank.len());
+
+        Self {
+            lines: 0..len,
+            emit_blank: trailing_newline,
+
+            max_width,
+
+            prefix,
+            postfix,
+            blank,
+        }
+    }
+
+    fn max_width(&self) -> usize {
+        self.max_width + self.prefix.len() + self.postfix.len()
+    }
+
+    fn next_with(&mut self, f: impl Fn(&mut Self) -> Option<usize>) -> Option<String> {
+        if let Some(line) = f(self) {
+            return Some(format!(
+                "{}{:>w$}{}",
+                self.prefix,
+                line + 1,
+                self.postfix,
+                w = self.max_width
+            ));
+        }
+
+        if self.emit_blank {
+            self.emit_blank = false;
+            Some(format!(
+                "{}{:>w$}{}",
+                self.prefix,
+                self.blank,
+                self.postfix,
+                w = self.max_width
+            ))
+        } else {
+            None
+        }
+    }
+}
+
+impl Iterator for Gutters<'_> {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_with(|s| s.lines.next())
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.next_with(|s| s.lines.nth(n))
     }
 }
