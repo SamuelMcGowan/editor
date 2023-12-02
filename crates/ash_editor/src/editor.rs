@@ -9,6 +9,13 @@ use ash_term::units::{OffsetU16, OffsetUsize};
 use crop::{Rope, RopeSlice};
 use unicode_width::UnicodeWidthStr;
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Mode {
+    #[default]
+    Normal,
+    Insert,
+}
+
 #[derive(Default)]
 pub struct Editor {
     rope: Rope,
@@ -21,16 +28,39 @@ pub struct Editor {
 
     /// Scroll offset, in cells.
     scroll_offset: OffsetUsize,
+
+    mode: Mode,
 }
 
 impl Editor {
     pub fn handle_event(&mut self, event: Event) -> ControlFlow<Result<()>> {
+        match self.mode {
+            Mode::Normal => self.handle_event_normal(event),
+            Mode::Insert => self.handle_event_insert(event),
+        }
+    }
+
+    fn handle_event_normal(&mut self, event: Event) -> ControlFlow<Result<()>> {
         match event {
             Event::Key(KeyEvent {
-                key_code: KeyCode::Char('Q'),
-                modifiers: Modifiers::CTRL,
-            }) => return ControlFlow::Break(Ok(())),
+                key_code,
+                modifiers: Modifiers::EMPTY,
+            }) => match key_code {
+                KeyCode::Char('q') => return ControlFlow::Break(Ok(())),
+                KeyCode::Char('i') => self.mode = Mode::Insert,
+                _ => {}
+            },
 
+            Event::Paste(s) => self.insert_str(&s),
+
+            _ => (),
+        }
+
+        ControlFlow::Continue(())
+    }
+
+    fn handle_event_insert(&mut self, event: Event) -> ControlFlow<Result<()>> {
+        match event {
             Event::Key(KeyEvent {
                 key_code,
                 modifiers: Modifiers::EMPTY,
@@ -48,6 +78,9 @@ impl Editor {
 
                 KeyCode::Home => self.move_home(),
                 KeyCode::End => self.move_end(),
+
+                KeyCode::Escape => self.mode = Mode::Normal,
+
                 _ => {}
             },
 
