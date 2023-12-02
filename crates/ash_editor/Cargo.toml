@@ -11,10 +11,7 @@ backtrace = "0.3.69"
 chrono = "0.4.31"
 color-backtrace = "0.6.1"
 
-# fixed a bug that was causing issues for me
-crop = { git = "https://github.com/SamuelMcGowan/crop", features = [
-    "graphemes",
-] }
+crop = { version = "0.4.1", features = ["graphemes"] }
 
 fern = "0.6.2"
 log = { workspace = true }
