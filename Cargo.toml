@@ -3,6 +3,8 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.dependencies]
+chrono = "0.4.31"
+fern = "0.6.2"
 log = "0.4.20"
 divan = "0.1.2"
 

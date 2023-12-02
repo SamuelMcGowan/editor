@@ -1,0 +1,18 @@
+[package]
+name = "ash_server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ash_common = { path = "../ash_common" }
+anyhow = "1.0.75"
+chrono = { workspace = true }
+fern = { workspace = true }
+log = { workspace = true }
+serde = "1.0.193"
+serde_json = "1.0.108"
+
+[lints]
+workspace = true
