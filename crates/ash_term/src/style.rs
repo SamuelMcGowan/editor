@@ -22,6 +22,14 @@ pub enum Weight {
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CursorShape {
+    #[default]
+    Block,
+    Underscore,
+    Bar,
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Style {
     pub fg: Color,
     pub bg: Color,
@@ -37,5 +45,18 @@ impl Style {
 
         weight: Weight::Normal,
         underline: false,
+    };
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CursorStyle {
+    pub shape: CursorShape,
+    pub blinking: bool,
+}
+
+impl CursorStyle {
+    pub const EMPTY: Self = CursorStyle {
+        shape: CursorShape::Bar,
+        blinking: false,
     };
 }

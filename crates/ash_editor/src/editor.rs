@@ -4,7 +4,7 @@ use std::ops::{ControlFlow, Range};
 use anyhow::Result;
 use ash_term::buffer::{BufferView, Cell};
 use ash_term::event::{Event, KeyCode, KeyEvent, Modifiers};
-use ash_term::style::{Style, Weight};
+use ash_term::style::{CursorShape, CursorStyle, Style, Weight};
 use ash_term::units::{OffsetU16, OffsetUsize};
 use crop::{Rope, RopeSlice};
 use unicode_width::UnicodeWidthStr;
@@ -352,6 +352,19 @@ impl Editor {
         if cursor.cmp_lt(buffer.size().into()).both() {
             buffer.set_cursor(Some(OffsetU16::from(cursor)));
         }
+
+        let style = match self.mode {
+            Mode::Normal => CursorStyle {
+                shape: CursorShape::Block,
+                blinking: false,
+            },
+            Mode::Insert => CursorStyle {
+                shape: CursorShape::Bar,
+                blinking: true,
+            },
+        };
+
+        buffer.set_cursor_style(style);
     }
 }
 

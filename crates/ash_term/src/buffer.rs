@@ -4,7 +4,7 @@ use compact_str::{CompactString, ToCompactString};
 
 // use unicode_segmentation::UnicodeSegmentation;
 // use unicode_width::UnicodeWidthStr;
-use crate::style::Style;
+use crate::style::{CursorStyle, Style};
 use crate::units::OffsetU16;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +64,7 @@ pub struct Buffer {
     size: OffsetU16,
 
     pub cursor: Option<OffsetU16>,
+    pub cursor_style: CursorStyle,
 }
 
 impl Clone for Buffer {
@@ -72,6 +73,7 @@ impl Clone for Buffer {
             buf: self.buf.clone(),
             size: self.size,
             cursor: self.cursor,
+            cursor_style: self.cursor_style,
         }
     }
 
@@ -79,6 +81,7 @@ impl Clone for Buffer {
         self.buf.clone_from(&source.buf);
         self.size = source.size;
         self.cursor = source.cursor;
+        self.cursor_style = source.cursor_style;
     }
 }
 
@@ -91,6 +94,7 @@ impl Buffer {
             buf,
             size,
             cursor: None,
+            cursor_style: CursorStyle::default(),
         }
     }
 
@@ -187,6 +191,16 @@ impl<'a> BufferView<'a> {
 
     pub fn cursor(&self) -> Option<OffsetU16> {
         self.buf.cursor
+    }
+
+    pub fn set_cursor_style(&mut self, style: CursorStyle) {
+        if self.set_cursor {
+            self.buf.cursor_style = style;
+        }
+    }
+
+    pub fn cursor_style(&self) -> CursorStyle {
+        self.buf.cursor_style
     }
 
     fn index(&self, index: impl Into<OffsetU16>) -> Option<usize> {

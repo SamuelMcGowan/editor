@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 use std::io::{self, Write};
 
 use super::Writer;
-use crate::style::{Color, Weight};
+use crate::style::{Color, CursorShape, Weight};
 use crate::units::OffsetU16;
 
 const CSI: &str = "\x1b[";
@@ -59,6 +59,23 @@ impl<W: Write> Writer for AnsiWriter<W> {
         match vis {
             true => write!(self.buf, "{CSI}?25h").unwrap(),
             false => write!(self.buf, "{CSI}?25l").unwrap(),
+        }
+    }
+
+    #[inline]
+    fn set_cursor_shape(&mut self, shape: CursorShape) {
+        match shape {
+            CursorShape::Block => write!(self.buf, "{CSI}2 q").unwrap(),
+            CursorShape::Underscore => write!(self.buf, "{CSI}4 q").unwrap(),
+            CursorShape::Bar => write!(self.buf, "{CSI}6 q").unwrap(),
+        }
+    }
+
+    #[inline]
+    fn set_cursor_blinking(&mut self, blinking: bool) {
+        match blinking {
+            true => write!(self.buf, "{CSI}?12h").unwrap(),
+            false => write!(self.buf, "{CSI}?12l").unwrap(),
         }
     }
 

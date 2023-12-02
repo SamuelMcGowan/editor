@@ -1,6 +1,6 @@
 use crate::buffer::BufferView;
 use crate::platform::Writer;
-use crate::style::Style;
+use crate::style::{CursorStyle, Style};
 use crate::units::OffsetU16;
 
 pub fn draw_diff(old: &BufferView, new: &BufferView, w: &mut impl Writer) {
@@ -46,6 +46,7 @@ pub fn draw_diff(old: &BufferView, new: &BufferView, w: &mut impl Writer) {
     if let Some(pos) = new.cursor() {
         w.set_cursor_pos(pos);
         w.set_cursor_vis(true);
+        draw_cursor_style_diff(old.cursor_style(), new.cursor_style(), w);
     }
 }
 
@@ -83,6 +84,7 @@ fn draw_no_diff(buf: &BufferView, w: &mut impl Writer) {
     }
 
     if let Some(pos) = buf.cursor() {
+        w.write_cursor_style(buf.cursor_style());
         w.set_cursor_pos(pos);
         w.set_cursor_vis(true);
     }
@@ -103,5 +105,15 @@ fn draw_style_diff(old: Style, new: Style, w: &mut impl Writer) {
 
     if new.underline != old.underline {
         w.set_underline(new.underline);
+    }
+}
+
+fn draw_cursor_style_diff(old: CursorStyle, new: CursorStyle, w: &mut impl Writer) {
+    if old.shape != new.shape {
+        w.set_cursor_shape(new.shape);
+    }
+
+    if old.blinking != new.blinking {
+        w.set_cursor_blinking(new.blinking);
     }
 }
