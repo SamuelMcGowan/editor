@@ -67,7 +67,7 @@ fn run_server(mut session_file: File) -> Result<()> {
 
     log::info!("listening on port {addr}");
 
-    write!(session_file, "{}", addr.port()).context("couldn't write port to session file")?;
+    write!(session_file, "{addr}").context("couldn't write port to session file")?;
 
     for stream in listener.incoming() {
         let stream = stream.context("connection failed")?;

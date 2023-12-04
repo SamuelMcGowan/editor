@@ -1,8 +1,9 @@
 pub mod client;
+pub mod peer;
 pub mod protocol;
+pub mod session;
 
 use clap::{Parser, Subcommand};
-use directories::ProjectDirs;
 
 fn main() -> Result<(), DriverError> {
     init_logging()?;
@@ -29,7 +30,7 @@ enum DriverError {
     Logger(#[from] fern::InitError),
 
     #[error(transparent)]
-    Client(#[from] client::ClientError),
+    Peer(#[from] peer::PeerError),
 }
 
 fn init_logging() -> Result<(), fern::InitError> {
@@ -64,9 +65,4 @@ enum CliCommand {
     #[default]
     Client,
     Server,
-}
-
-// TODO: remove
-pub fn project_dirs() -> Option<ProjectDirs> {
-    ProjectDirs::from("", "", "ash_editor")
 }
