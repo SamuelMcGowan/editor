@@ -1,41 +1,35 @@
-use std::fs::{File, OpenOptions};
-use std::io::{ErrorKind, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 
 use anyhow::{Context, Result};
-use ash_server::{Request, Response};
-use serde_json::Deserializer;
-
-pub const LOCALHOST: &str = "127.0.0.1:0";
-
-// --lock
+use ash_core::peer::{Peer, PeerResult};
+use ash_core::protocol::{Request, Response};
+use ash_core::session::SessionLock;
 
 fn main() -> Result<()> {
     init_logging()?;
 
-    let project_dirs = ash_server::project_dirs().context("couldn't get project directories")?;
+    let mut session = SessionLock::new()?;
 
-    std::fs::create_dir_all(project_dirs.data_dir())
-        .context("couldn't create session data directory")?;
+    let listener = TcpListener::bind(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0))
+        .context("couldn't bind to port")?;
 
-    let session_file_path = project_dirs.data_dir().join("session");
+    let addr = listener
+        .local_addr()
+        .context("couldn't get socket address")?;
 
-    match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&session_file_path)
-    {
-        Ok(file) => {
-            let res = run_server(file);
-            std::fs::remove_file(session_file_path).context("couldn't delete session file")?;
-            res
-        }
-        Err(err) if err.kind() == ErrorKind::AlreadyExists => {
-            log::info!("server already running (session file exists)");
-            Ok(())
-        }
-        Err(err) => Err(anyhow::Error::from(err).context("couldn't create session file")),
+    session.set_addr(addr)?;
+
+    log::info!("listening on port {addr}");
+
+    for stream in listener.incoming() {
+        std::thread::spawn(|| {
+            if let Err(err) = handle_connection(stream) {
+                log::error!("{err}");
+            }
+        });
     }
+
+    Ok(())
 }
 
 fn init_logging() -> Result<()> {
@@ -59,49 +53,20 @@ fn init_logging() -> Result<()> {
     Ok(())
 }
 
-fn run_server(mut session_file: File) -> Result<()> {
-    let listener = TcpListener::bind(LOCALHOST).context("couldn't bind to port")?;
-    let addr = listener
-        .local_addr()
-        .context("couldn't get socket address")?;
+fn handle_connection(stream: std::io::Result<TcpStream>) -> PeerResult<()> {
+    let mut peer = Peer::from_stream(stream?)?;
 
-    log::info!("listening on port {addr}");
+    log::info!("connected to client: {}", peer.local_addr());
 
-    write!(session_file, "{addr}").context("couldn't write port to session file")?;
-
-    for stream in listener.incoming() {
-        let stream = stream.context("connection failed")?;
-        std::thread::spawn(|| {
-            if let Err(err) = handle_connection(stream) {
-                log::error!("{}", err.context("while handling connection"));
-            }
-        });
-    }
-
-    Ok(())
-}
-
-fn handle_connection(mut stream: TcpStream) -> Result<()> {
-    log::info!("connected to client: {}", stream.local_addr()?);
-
-    let stream_read = stream.try_clone()?;
-
-    for request in Deserializer::from_reader(stream_read).into_iter::<Request>() {
-        let request = request?;
-
-        log::info!("received request: {request:?}");
-
+    while let Some(request) = peer.receive()? {
         let response = match request {
             Request::Quit => Response::Ok,
         };
 
-        let response_json = serde_json::to_string(&response)?;
-
-        write!(stream, "{response_json}")?;
-        stream.flush()?;
+        peer.send(response)?;
     }
 
-    log::info!("client {} disconnected", stream.peer_addr()?);
+    log::info!("client {} disconnected", peer.peer_addr());
 
     Ok(())
 }

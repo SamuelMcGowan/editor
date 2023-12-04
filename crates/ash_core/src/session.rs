@@ -1,5 +1,5 @@
 use std::fs::OpenOptions;
-use std::io::{self, ErrorKind, Write};
+use std::io::{self, ErrorKind};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -28,7 +28,7 @@ pub struct SessionLock {
 }
 
 impl SessionLock {
-    pub fn new(addr: SocketAddr) -> SessionResult<Self> {
+    pub fn new() -> SessionResult<Self> {
         let data_dir = get_data_dir()?;
         std::fs::create_dir_all(&data_dir)?;
 
@@ -39,12 +39,7 @@ impl SessionLock {
             .create_new(true)
             .open(&session_file_path)
         {
-            Ok(mut file) => {
-                write!(file, "{addr}")?;
-                file.flush()?;
-
-                Ok(Self { session_file_path })
-            }
+            Ok(_) => Ok(Self { session_file_path }),
 
             Err(err) if err.kind() == ErrorKind::AlreadyExists => {
                 Err(SessionError::SessionAlreadyExists)
@@ -52,6 +47,11 @@ impl SessionLock {
 
             Err(err) => Err(SessionError::Io(err)),
         }
+    }
+
+    pub fn set_addr(&mut self, addr: SocketAddr) -> SessionResult<()> {
+        std::fs::write(&self.session_file_path, format!("{addr}"))?;
+        Ok(())
     }
 }
 
