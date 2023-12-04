@@ -39,6 +39,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4668cab20f66d8d020e1fbc0ebe47217433c1b6c8f2040faf858554e394ace6"
 
 [[package]]
+name = "ash_client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ash_server",
+ "chrono",
+ "fern",
+ "log",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ash_editor"
 version = "0.1.0"
 dependencies = [

@@ -37,7 +37,7 @@ fn init_logging() -> Result<()> {
             ))
         })
         .level(log::LevelFilter::Debug)
-        .chain(fern::log_file("output.log")?)
+        .chain(fern::log_file("logs/editor.log")?)
         .apply()?;
 
     Ok(())
