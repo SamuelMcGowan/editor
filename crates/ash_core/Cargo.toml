@@ -1,23 +1,16 @@
 [package]
-name = "ash_driver"
+name = "ash_core"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = { workspace = true }
-
+dirs = "5.0.1"
+log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-
-log = { workspace = true }
-fern = { workspace = true }
-chrono = { workspace = true }
-
-clap = { version = "4.4.10", features = ["derive"] }
-
-dirs = "5.0.1"
+thiserror = { workspace = true }
 
 [lints]
 workspace = true
