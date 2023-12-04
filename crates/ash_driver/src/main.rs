@@ -1,4 +1,8 @@
+pub mod client;
+pub mod protocol;
+
 use clap::{Parser, Subcommand};
+use directories::ProjectDirs;
 
 fn main() -> Result<(), DriverError> {
     init_logging()?;
@@ -8,7 +12,9 @@ fn main() -> Result<(), DriverError> {
     match args.command.unwrap_or_default() {
         CliCommand::Client => {
             log::info!("starting client");
+            client::run()?;
         }
+
         CliCommand::Server => {
             log::info!("starting server");
         }
@@ -21,6 +27,9 @@ fn main() -> Result<(), DriverError> {
 enum DriverError {
     #[error(transparent)]
     Logger(#[from] fern::InitError),
+
+    #[error(transparent)]
+    Client(#[from] client::ClientError),
 }
 
 fn init_logging() -> Result<(), fern::InitError> {
@@ -38,7 +47,7 @@ fn init_logging() -> Result<(), fern::InitError> {
         })
         .level(log::LevelFilter::Debug)
         .chain(std::io::stderr()) // remove before doing terminal stuff
-        .chain(fern::log_file("logs/driver.log")?)
+        .chain(fern::log_file("output.log")?)
         .apply()?;
 
     Ok(())
@@ -55,4 +64,9 @@ enum CliCommand {
     #[default]
     Client,
     Server,
+}
+
+// TODO: remove
+pub fn project_dirs() -> Option<ProjectDirs> {
+    ProjectDirs::from("", "", "ash_editor")
 }
