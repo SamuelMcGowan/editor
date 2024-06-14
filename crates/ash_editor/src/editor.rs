@@ -303,7 +303,7 @@ impl Editor {
             ..Style::EMPTY
         };
 
-        let gutters = Gutters::new(&self.rope, "", "  ", "🐻‍❄️");
+        let gutters = Gutters::new(&self.rope, "", "  ", "~");
         let max_width = gutters.max_width();
 
         for (y, gutter) in gutters
