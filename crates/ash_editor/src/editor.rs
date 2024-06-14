@@ -157,11 +157,24 @@ impl Editor {
 
             let Some(new_offset_y) = cursor_offset.y.checked_add_signed(n) else {
                 self.cursor_index = 0;
+                self.target_column = Some(0);
                 break 'main;
             };
 
             if new_offset_y >= self.rope.line_len() {
                 self.cursor_index = self.rope.byte_len();
+
+                let num_lines = self.rope.line_len();
+                self.target_column = Some(match num_lines {
+                    0 => 0,
+                    _ => self
+                        .rope
+                        .line(num_lines - 1)
+                        .chunks()
+                        .map(|chunk| chunk.width())
+                        .sum(),
+                });
+
                 break 'main;
             }
 
@@ -191,21 +204,23 @@ impl Editor {
         let line = self.rope.line(offset.y);
         let line_start = self.rope.byte_of_line(offset.y);
 
-        let new_column = line.graphemes().try_fold(0, |acc, grapheme| {
+        let byte_offset = line.graphemes().try_fold((0, 0), |(acc, off), grapheme| {
             let end = acc + grapheme.width();
             if offset.x >= end {
-                ControlFlow::Continue(end)
+                ControlFlow::Continue((end, off + grapheme.len()))
             } else {
-                ControlFlow::Break(acc)
+                ControlFlow::Break(off)
             }
         });
 
-        let new_column = match new_column {
-            ControlFlow::Break(start) => start,
-            ControlFlow::Continue(start) => start,
+        let byte_offset = match byte_offset {
+            ControlFlow::Break(off) => off,
+            ControlFlow::Continue((_, off)) => off,
         };
 
-        self.cursor_index = line_start + new_column;
+        // let line = self.rope.byte_slice(line_start..)
+
+        self.cursor_index = line_start + byte_offset;
     }
 
     fn grapheme_before_cursor(&self) -> Option<Cow<str>> {
@@ -288,7 +303,7 @@ impl Editor {
             ..Style::EMPTY
         };
 
-        let gutters = Gutters::new(&self.rope, "", "  ", "~");
+        let gutters = Gutters::new(&self.rope, "", "  ", "🐻‍❄️");
         let max_width = gutters.max_width();
 
         for (y, gutter) in gutters
@@ -296,11 +311,7 @@ impl Editor {
             .take(buffer.size().y as usize)
             .enumerate()
         {
-            // TODO: use graphemes
-            for (x, ch) in gutter.chars().enumerate() {
-                buffer[[x as u16, y as u16]] =
-                    Some(Cell::empty().with_char(ch).with_style(GUTTER_STYLE))
-            }
+            buffer.draw_text(OffsetU16::new(0, y as u16), &gutter, GUTTER_STYLE);
         }
 
         max_width
@@ -325,7 +336,8 @@ impl Editor {
                         break;
                     }
 
-                    buffer[[column as u16, y as u16]] = Some(Cell::empty().with_symbol(&grapheme));
+                    buffer[[column as u16, y as u16]] =
+                        Some(Cell::empty().with_grapheme(&grapheme));
                 }
 
                 x += grapheme.width();
@@ -376,7 +388,7 @@ impl<'a> Gutters<'a> {
             None => true,
         };
 
-        let max_width = (len.checked_ilog10().unwrap_or_default() as usize + 1).max(blank.len());
+        let max_width = (len.checked_ilog10().unwrap_or_default() as usize + 1).max(blank.width());
 
         Self {
             lines: 0..len,
@@ -391,7 +403,7 @@ impl<'a> Gutters<'a> {
     }
 
     fn max_width(&self) -> usize {
-        self.max_width + self.prefix.len() + self.postfix.len()
+        self.max_width + self.prefix.width() + self.postfix.width()
     }
 
     fn next_with(&mut self, f: impl Fn(&mut Self) -> Option<usize>) -> Option<String> {

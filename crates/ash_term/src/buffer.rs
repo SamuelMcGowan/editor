@@ -1,6 +1,8 @@
 use std::ops::{Bound, Index, IndexMut, Range, RangeBounds};
 
 use compact_str::{CompactString, ToCompactString};
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 // use unicode_segmentation::UnicodeSegmentation;
 // use unicode_width::UnicodeWidthStr;
@@ -9,33 +11,33 @@ use crate::units::OffsetU16;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cell {
-    symbol: CompactString,
+    grapheme: CompactString,
     style: Style,
 }
 
 impl Cell {
     pub const fn empty() -> Self {
         Cell {
-            symbol: CompactString::new_inline(" "),
+            grapheme: CompactString::new_inline(" "),
             style: Style::EMPTY,
         }
     }
 
-    pub fn symbol(&self) -> &str {
-        &self.symbol
+    pub fn grapheme(&self) -> &str {
+        &self.grapheme
     }
 
     pub fn style(&self) -> Style {
         self.style
     }
 
-    pub fn with_symbol(mut self, symbol: &str) -> Self {
-        self.symbol = symbol.to_compact_string();
+    pub fn with_grapheme(mut self, grapheme: &str) -> Self {
+        self.grapheme = grapheme.to_compact_string();
         self
     }
 
     pub fn with_char(mut self, ch: char) -> Self {
-        self.symbol = ch.to_compact_string();
+        self.grapheme = ch.to_compact_string();
         self
     }
 
@@ -155,6 +157,38 @@ impl<'a> BufferView<'a> {
 
     pub fn size(&self) -> OffsetU16 {
         self.end - self.start
+    }
+
+    pub fn draw_text(&mut self, pos: impl Into<OffsetU16>, text: &str, style: Style) {
+        let mut pos = self.start.saturating_add(pos.into());
+
+        if pos.y >= self.end.y {
+            return;
+        }
+
+        let line_start_index = pos.y as usize * self.buf.size.x as usize;
+
+        for grapheme in text.graphemes(true) {
+            if pos.x >= self.end.x {
+                break;
+            }
+
+            let index = line_start_index + pos.x as usize;
+            self.buf.buf[index] = Some(Cell::empty().with_grapheme(grapheme).with_style(style));
+
+            let width = grapheme.width() as u16;
+
+            pos.x = if let Some(x) = pos.x.checked_add(width) {
+                x
+            } else {
+                break;
+            };
+
+            // put empty cells after multi-width characters
+            for i in 1..width {
+                self.buf.buf[index + i as usize] = Some(Cell::empty());
+            }
+        }
     }
 
     pub fn get(&self, index: impl Into<OffsetU16>) -> Option<&Option<Cell>> {

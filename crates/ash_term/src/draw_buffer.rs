@@ -39,7 +39,7 @@ pub fn draw_diff(old: &BufferView, new: &BufferView, w: &mut impl Writer) {
 
             cursor_pos.x = cursor_pos.x.saturating_add(1);
 
-            w.write_str_raw(cell.symbol());
+            w.write_str_raw(cell.grapheme());
         }
     }
 
@@ -77,7 +77,7 @@ fn draw_no_diff(buf: &BufferView, w: &mut impl Writer) {
             draw_style_diff(style, cell.style(), w);
             style = cell.style();
 
-            w.write_str_raw(cell.symbol());
+            w.write_str_raw(cell.grapheme());
         }
 
         pos_dirty = true;
