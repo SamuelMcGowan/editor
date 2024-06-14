@@ -11,6 +11,8 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::action::{Action, KeyMap};
 
+const ERROR_SYMBOL: &str = "�";
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Mode {
     #[default]
@@ -79,14 +81,32 @@ impl Editor {
     }
 
     fn insert_str(&mut self, s: &str) {
-        self.rope.insert(self.cursor_index, s);
-        self.cursor_index += s.len();
+        // TODO: convert solitary carriage returns to newlines
+        let mut substr_start = 0;
+        for (idx, ch) in s.char_indices() {
+            if ch.is_ascii_control() && ch != '\n' {
+                let substr = &s[substr_start..idx];
+                substr_start = idx + ch.len_utf8();
+
+                self.rope.insert(self.cursor_index, substr);
+                self.cursor_index += substr.len();
+
+                self.rope.insert(self.cursor_index, ERROR_SYMBOL);
+                self.cursor_index += ERROR_SYMBOL.len();
+            }
+        }
+
+        let substr = &s[substr_start..];
+        self.rope.insert(self.cursor_index, substr);
+        self.cursor_index += substr.len();
+
         self.target_column = None;
     }
 
     fn insert_str_after(&mut self, s: &str) {
-        self.rope.insert(self.cursor_index, s);
-        self.target_column = None;
+        let cursor_index = self.cursor_index;
+        self.insert_str(s);
+        self.cursor_index = cursor_index;
     }
 
     fn insert_char(&mut self, ch: char) {
