@@ -356,5 +356,24 @@ mod tests {
         s.truncate_front(14);
     }
 
-    // TODO: test truncate back
+    #[test]
+    fn truncate_back() {
+        let mut s = GapString::from("that will be £5 please");
+        s.set_gap(0);
+
+        s.truncate_back(23);
+        assert_eq!(s.back(), "that will be £5 please");
+
+        s.truncate_back(8);
+        assert_eq!(s.back(), "5 please");
+    }
+
+    #[test]
+    #[should_panic = "len not on char boundary"]
+    fn truncate_back_invalid() {
+        let mut s = GapString::from("that will be £5 please");
+        s.set_gap(0);
+
+        s.truncate_back(9);
+    }
 }
