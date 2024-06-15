@@ -1,7 +1,10 @@
 use std::borrow::Cow;
+use std::fs::{self, File};
+use std::io::{BufWriter, Write};
 use std::ops::{ControlFlow, Range};
+use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use ash_term::buffer::{BufferView, Cell};
 use ash_term::event::Event;
 use ash_term::style::{CursorShape, CursorStyle, Style, Weight};
@@ -23,6 +26,7 @@ pub enum Mode {
 #[derive(Default)]
 pub struct Editor {
     rope: Rope,
+    path: Option<PathBuf>,
 
     /// Cursor position, as a byte index.
     cursor_index: usize,
@@ -39,6 +43,22 @@ pub struct Editor {
 }
 
 impl Editor {
+    pub fn new(path: Option<PathBuf>) -> Result<Self> {
+        let rope = if let Some(path) = &path {
+            // TODO: do this properly
+            let source = fs::read_to_string(path).context("couldn't read file")?;
+            Rope::from(source)
+        } else {
+            Rope::new()
+        };
+
+        Ok(Self {
+            rope,
+            path,
+            ..Default::default()
+        })
+    }
+
     pub fn handle_event(&mut self, event: Event) -> ControlFlow<Result<()>> {
         if let Some(action) = self.keymap.get_action(self.mode, event) {
             self.handle_action(action)
@@ -74,10 +94,26 @@ impl Editor {
 
             Action::SetMode(mode) => self.mode = mode,
 
+            Action::Save => self.save(),
             Action::Quit => return ControlFlow::Break(Ok(())),
         }
 
         ControlFlow::Continue(())
+    }
+
+    fn save(&self) {
+        let snapshot = self.rope.clone();
+
+        if let Some(path) = self.path.clone() {
+            // TODO: report errors properly
+            std::thread::spawn(move || {
+                let mut file = BufWriter::new(File::create(path).expect("failed to open file"));
+                for chunk in snapshot.chunks() {
+                    file.write_all(chunk.as_bytes())
+                        .expect("failed to write to file");
+                }
+            });
+        }
     }
 
     fn insert_str(&mut self, s: &str) {

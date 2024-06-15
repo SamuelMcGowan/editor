@@ -4,6 +4,7 @@ mod panic;
 mod utils;
 
 use std::ops::ControlFlow;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
@@ -11,14 +12,22 @@ use ash_term::buffer::Buffer;
 use ash_term::draw_buffer::draw_diff;
 use ash_term::platform::{Events, PlatformTerminal, Terminal, Writer};
 use ash_term::units::OffsetU16;
+use clap::Parser;
 use editor::Editor;
 
 const FRAME_RATE: Duration = Duration::from_millis(17);
 
+#[derive(Parser)]
+struct Args {
+    path: Option<PathBuf>,
+}
+
 fn main() -> Result<()> {
     init_logging()?;
 
-    panic::catch_and_reprint_panic(|| App::new()?.run()).context("panicked")??;
+    let args = Args::parse();
+
+    panic::catch_and_reprint_panic(|| App::new(args)?.run()).context("panicked")??;
 
     Ok(())
 }
@@ -53,14 +62,14 @@ struct App {
 }
 
 impl App {
-    fn new() -> Result<Self> {
+    fn new(args: Args) -> Result<Self> {
         Ok(Self {
             terminal: PlatformTerminal::init()?,
 
             char_buf_prev: Buffer::new(OffsetU16::ZERO),
             char_buf: Buffer::new(OffsetU16::ZERO),
 
-            editor: Editor::default(),
+            editor: Editor::new(args.path)?,
         })
     }
 

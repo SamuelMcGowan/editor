@@ -28,6 +28,7 @@ pub enum Action {
 
     SetMode(Mode),
 
+    Save,
     Quit,
 }
 
@@ -76,6 +77,7 @@ impl KeyMap {
             KeyEvent::new(KeyCode::Char('k')) => Action::MoveUp,
             KeyEvent::new(KeyCode::Char('j')) => Action::MoveDown,
 
+            KeyEvent::new(KeyCode::Char('s')) => Action::Save,
             KeyEvent::new(KeyCode::Char('q')) => Action::Quit,
         };
 
