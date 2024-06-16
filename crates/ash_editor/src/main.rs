@@ -1,4 +1,5 @@
 mod action;
+mod document;
 mod editor;
 mod panic;
 mod utils;
@@ -13,9 +14,17 @@ use ash_term::draw_buffer::draw_diff;
 use ash_term::platform::{Events, PlatformTerminal, Terminal, Writer};
 use ash_term::units::OffsetU16;
 use clap::Parser;
+use document::Document;
 use editor::Editor;
 
 const FRAME_RATE: Duration = Duration::from_millis(17);
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Mode {
+    #[default]
+    Normal,
+    Insert,
+}
 
 #[derive(Parser)]
 struct Args {
@@ -63,13 +72,15 @@ struct App {
 
 impl App {
     fn new(args: Args) -> Result<Self> {
+        let document = Document::new(args.path)?;
+
         Ok(Self {
             terminal: PlatformTerminal::init()?,
 
             char_buf_prev: Buffer::new(OffsetU16::ZERO),
             char_buf: Buffer::new(OffsetU16::ZERO),
 
-            editor: Editor::new(args.path)?,
+            editor: Editor::new(document),
         })
     }
 

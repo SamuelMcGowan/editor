@@ -1,20 +1,14 @@
-use std::borrow::Cow;
-use std::fs::{self, File};
-use std::io::{BufWriter, Write};
 use std::ops::{ControlFlow, Range};
-use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use crate::action::{Action, KeyMap};
+use crate::document::{Document, RopeExt};
+use anyhow::Result;
 use ash_term::buffer::{BufferView, Cell};
 use ash_term::event::Event;
 use ash_term::style::{CursorShape, CursorStyle, Style, Weight};
 use ash_term::units::{OffsetU16, OffsetUsize};
-use crop::{Rope, RopeSlice};
+use crop::Rope;
 use unicode_width::UnicodeWidthStr;
-
-use crate::action::{Action, KeyMap};
-
-const ERROR_SYMBOL: &str = "�";
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Mode {
@@ -25,38 +19,17 @@ pub enum Mode {
 
 #[derive(Default)]
 pub struct Editor {
-    rope: Rope,
-    path: Option<PathBuf>,
-
-    /// Cursor position, as a byte index.
-    cursor_index: usize,
-
-    /// Column to try to move to when moving (in cells).
-    target_column: Option<usize>,
-
-    /// Scroll offset, in cells.
-    scroll_offset: OffsetUsize,
-
+    document: Document,
     mode: Mode,
-
     keymap: KeyMap,
 }
 
 impl Editor {
-    pub fn new(path: Option<PathBuf>) -> Result<Self> {
-        let rope = if let Some(path) = &path {
-            // TODO: do this properly
-            let source = fs::read_to_string(path).context("couldn't read file")?;
-            Rope::from(source)
-        } else {
-            Rope::new()
-        };
-
-        Ok(Self {
-            rope,
-            path,
+    pub fn new(document: Document) -> Self {
+        Self {
+            document,
             ..Default::default()
-        })
+        }
     }
 
     pub fn handle_event(&mut self, event: Event) -> ControlFlow<Result<()>> {
@@ -75,276 +48,36 @@ impl Editor {
                 }
             }
 
-            Action::InsertChar(ch) => self.insert_char(ch),
-            Action::InsertCharAfter(ch) => self.insert_char_after(ch),
+            Action::InsertChar(ch) => self.document.insert_char(ch),
+            Action::InsertCharAfter(ch) => self.document.insert_char_after(ch),
 
-            Action::InsertString(s) => self.insert_str(&s),
-            Action::InsertStringAfter(s) => self.insert_str_after(&s),
+            Action::InsertString(s) => self.document.insert_str(&s),
+            Action::InsertStringAfter(s) => self.document.insert_str_after(&s),
 
-            Action::Backspace => self.backspace(),
-            Action::Delete => self.delete(),
+            Action::Backspace => self.document.backspace(),
+            Action::Delete => self.document.delete(),
 
-            Action::MoveLeft => self.move_left(),
-            Action::MoveRight => self.move_right(),
-            Action::MoveUp => self.move_up(),
-            Action::MoveDown => self.move_down(),
+            Action::MoveLeft => self.document.move_left(),
+            Action::MoveRight => self.document.move_right(),
+            Action::MoveUp => self.document.move_up(),
+            Action::MoveDown => self.document.move_down(),
 
-            Action::MoveHome => self.move_home(),
-            Action::MoveEnd => self.move_end(),
+            Action::MoveHome => self.document.move_home(),
+            Action::MoveEnd => self.document.move_end(),
 
             Action::SetMode(mode) => self.mode = mode,
 
-            Action::Save => self.save(),
+            Action::Save => self.document.save_file(),
             Action::Quit => return ControlFlow::Break(Ok(())),
         }
 
         ControlFlow::Continue(())
     }
-
-    fn save(&self) {
-        let snapshot = self.rope.clone();
-
-        if let Some(path) = self.path.clone() {
-            // TODO: report errors properly
-            std::thread::spawn(move || {
-                let mut file = BufWriter::new(File::create(path).expect("failed to open file"));
-                for chunk in snapshot.chunks() {
-                    file.write_all(chunk.as_bytes())
-                        .expect("failed to write to file");
-                }
-            });
-        }
-    }
-
-    fn insert_str(&mut self, s: &str) {
-        // TODO: convert solitary carriage returns to newlines
-        let mut substr_start = 0;
-        for (idx, ch) in s.char_indices() {
-            if ch.is_ascii_control() && ch != '\n' {
-                let substr = &s[substr_start..idx];
-                substr_start = idx + ch.len_utf8();
-
-                self.rope.insert(self.cursor_index, substr);
-                self.cursor_index += substr.len();
-
-                self.rope.insert(self.cursor_index, ERROR_SYMBOL);
-                self.cursor_index += ERROR_SYMBOL.len();
-            }
-        }
-
-        let substr = &s[substr_start..];
-        self.rope.insert(self.cursor_index, substr);
-        self.cursor_index += substr.len();
-
-        self.target_column = None;
-    }
-
-    fn insert_str_after(&mut self, s: &str) {
-        let cursor_index = self.cursor_index;
-        self.insert_str(s);
-        self.cursor_index = cursor_index;
-    }
-
-    fn insert_char(&mut self, ch: char) {
-        self.insert_str(ch.encode_utf8(&mut [0; 4]));
-    }
-
-    fn insert_char_after(&mut self, ch: char) {
-        self.insert_str_after(ch.encode_utf8(&mut [0; 4]));
-    }
-
-    fn backspace(&mut self) {
-        if let Some(prev) = self.grapheme_before_cursor() {
-            let prev_len = prev.len();
-            self.rope
-                .delete((self.cursor_index - prev_len)..self.cursor_index);
-            self.cursor_index -= prev_len;
-        }
-        self.target_column = None;
-    }
-
-    fn delete(&mut self) {
-        if let Some(next) = self.grapheme_after_cursor() {
-            self.rope
-                .delete(self.cursor_index..(self.cursor_index + next.len()));
-        }
-        self.target_column = None;
-    }
-
-    fn move_left(&mut self) {
-        if let Some(prev) = self.grapheme_before_cursor() {
-            self.cursor_index -= prev.len();
-        }
-        self.target_column = None;
-    }
-
-    fn move_right(&mut self) {
-        if let Some(next) = self.grapheme_after_cursor() {
-            self.cursor_index += next.len();
-        }
-        self.target_column = None;
-    }
-
-    fn move_up(&mut self) {
-        self.move_vertical(-1);
-    }
-
-    fn move_down(&mut self) {
-        self.move_vertical(1);
-    }
-
-    fn move_home(&mut self) {
-        self.go_to_offset(OffsetUsize::new(0, self.cursor_offset().y));
-        self.target_column = None;
-    }
-
-    fn move_end(&mut self) {
-        let (_, line) = self.current_line();
-        let line_width = line.chunks().map(|chunk| chunk.width()).sum();
-        self.go_to_offset(OffsetUsize::new(line_width, self.cursor_offset().y));
-        self.target_column = None;
-    }
-
-    fn move_vertical(&mut self, n: isize) {
-        let prev_cursor_index = self.cursor_index;
-
-        'main: {
-            let cursor_offset = self.cursor_offset();
-
-            let Some(new_offset_y) = cursor_offset.y.checked_add_signed(n) else {
-                self.cursor_index = 0;
-                self.target_column = Some(0);
-                break 'main;
-            };
-
-            if new_offset_y >= self.rope.line_len() {
-                self.cursor_index = self.rope.byte_len();
-
-                let num_lines = self.rope.line_len();
-                self.target_column = Some(match num_lines {
-                    0 => 0,
-                    _ => self
-                        .rope
-                        .line(num_lines - 1)
-                        .chunks()
-                        .map(|chunk| chunk.width())
-                        .sum(),
-                });
-
-                break 'main;
-            }
-
-            let new_offset_x = match self.target_column {
-                Some(col) => col,
-                None => {
-                    let col = cursor_offset.x;
-                    self.target_column = Some(col);
-                    col
-                }
-            };
-
-            self.go_to_offset(OffsetUsize::new(new_offset_x, new_offset_y));
-        }
-
-        if self.cursor_index == prev_cursor_index {
-            self.target_column = None;
-        }
-    }
-
-    fn go_to_offset(&mut self, offset: OffsetUsize) {
-        if offset.y >= self.rope.line_len() {
-            self.cursor_index = self.rope.byte_len();
-            return;
-        };
-
-        let line = self.rope.line(offset.y);
-        let line_start = self.rope.byte_of_line(offset.y);
-
-        let byte_offset = line.graphemes().try_fold((0, 0), |(acc, off), grapheme| {
-            let end = acc + grapheme.width();
-            if offset.x >= end {
-                ControlFlow::Continue((end, off + grapheme.len()))
-            } else {
-                ControlFlow::Break(off)
-            }
-        });
-
-        let byte_offset = match byte_offset {
-            ControlFlow::Break(off) => off,
-            ControlFlow::Continue((_, off)) => off,
-        };
-
-        // let line = self.rope.byte_slice(line_start..)
-
-        self.cursor_index = line_start + byte_offset;
-    }
-
-    fn grapheme_before_cursor(&self) -> Option<Cow<str>> {
-        self.rope_before_cursor().graphemes().next_back()
-    }
-
-    fn grapheme_after_cursor(&self) -> Option<Cow<str>> {
-        self.rope_after_cursor().graphemes().next()
-    }
-
-    fn rope_before_cursor(&self) -> RopeSlice {
-        self.rope.byte_slice(..self.cursor_index)
-    }
-
-    fn rope_after_cursor(&self) -> RopeSlice {
-        self.rope.byte_slice(self.cursor_index..)
-    }
-
-    fn current_line(&self) -> (usize, RopeSlice) {
-        let line_num = self.rope.line_of_byte(self.cursor_index);
-
-        let slice = if line_num == self.rope.line_len() {
-            self.rope.byte_slice(self.cursor_index..)
-        } else {
-            self.rope.line(line_num)
-        };
-
-        (line_num, slice)
-    }
-
-    /// The cursor offset, in cells.
-    fn cursor_offset(&self) -> OffsetUsize {
-        let line = self.rope.line_of_byte(self.cursor_index);
-        let line_start = self.rope.byte_of_line(line);
-
-        // Fine to sum up the widths of each chunk - the `width` implementation just
-        // sums the character widths, so it seems there's nothing contextual
-        // that is lost by splitting up a string.
-        let column: usize = self
-            .rope
-            .byte_slice(line_start..self.cursor_index)
-            .chunks()
-            .map(|s| s.width())
-            .sum();
-
-        OffsetUsize::new(column, line)
-    }
-
-    fn scroll_to_show_cursor(&mut self, size: OffsetUsize) {
-        let cursor_offset = self.cursor_offset();
-
-        if cursor_offset.x < self.scroll_offset.x {
-            self.scroll_offset.x = cursor_offset.x;
-        } else if cursor_offset.x >= self.scroll_offset.x + size.x {
-            self.scroll_offset.x = cursor_offset.x - size.x + 1;
-        }
-
-        if cursor_offset.y < self.scroll_offset.y {
-            self.scroll_offset.y = cursor_offset.y;
-        } else if cursor_offset.y >= self.scroll_offset.y + size.y {
-            self.scroll_offset.y = cursor_offset.y - size.y + 1;
-        }
-    }
 }
 
 impl Editor {
     pub fn draw(&mut self, buffer: &mut BufferView) {
-        self.scroll_to_show_cursor(buffer.size().into());
+        self.document.scroll_to_show_cursor(buffer.size().into());
 
         let gutter_width = self.draw_gutter(buffer);
 
@@ -359,11 +92,11 @@ impl Editor {
             ..Style::EMPTY
         };
 
-        let gutters = Gutters::new(&self.rope, "", "  ", "~");
+        let gutters = Gutters::new(self.document.rope(), "", "  ", "~");
         let max_width = gutters.max_width();
 
         for (y, gutter) in gutters
-            .skip(self.scroll_offset.y)
+            .skip(self.document.scroll_offset().y)
             .take(buffer.size().y as usize)
             .enumerate()
         {
@@ -375,18 +108,20 @@ impl Editor {
 
     fn draw_text(&self, buffer: &mut BufferView) {
         let size: OffsetUsize = buffer.size().into();
+        let scroll_offset = self.document.scroll_offset();
 
         for (y, line) in self
-            .rope
+            .document
+            .rope()
             .lines()
-            .skip(self.scroll_offset.y)
+            .skip(scroll_offset.y)
             .take(size.y)
             .enumerate()
         {
             let mut x = 0;
             for grapheme in line.graphemes() {
-                if x >= self.scroll_offset.x {
-                    let column = x - self.scroll_offset.x;
+                if x >= scroll_offset.x {
+                    let column = x - scroll_offset.x;
 
                     if column >= size.x {
                         break;
@@ -403,7 +138,10 @@ impl Editor {
 
     fn draw_cursor(&self, buffer: &mut BufferView) {
         // If we support cursors being offscreen, we can't use saturating sub.
-        let cursor = self.cursor_offset().saturating_sub(self.scroll_offset);
+        let cursor = self
+            .document
+            .cursor_offset()
+            .saturating_sub(self.document.scroll_offset());
 
         if cursor.cmp_lt(buffer.size().into()).both() {
             buffer.set_cursor(Some(OffsetU16::from(cursor)));
@@ -439,16 +177,11 @@ impl<'a> Gutters<'a> {
     fn new(rope: &Rope, prefix: &'a str, postfix: &'a str, blank: &'a str) -> Self {
         let len = rope.line_len();
 
-        let trailing_newline = match rope.chunks().last() {
-            Some(chunk) => chunk.ends_with('\n'),
-            None => true,
-        };
-
         let max_width = (len.checked_ilog10().unwrap_or_default() as usize + 1).max(blank.width());
 
         Self {
             lines: 0..len,
-            emit_blank: trailing_newline,
+            emit_blank: rope.has_trailing_newline(),
 
             max_width,
 
